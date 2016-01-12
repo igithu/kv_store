@@ -2223,6 +2223,7 @@ static void process_bin_delete(conn *c) {
     }
 }
 
+// mark getorset
 static void complete_nread_binary(conn *c) {
     assert(c != NULL);
     assert(c->cmd >= 0);
