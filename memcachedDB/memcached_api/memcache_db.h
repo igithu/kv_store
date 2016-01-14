@@ -22,6 +22,8 @@
 
 #include <string>
 
+#include "memcache.h"
+
 enum Status {
 };
 
@@ -34,6 +36,9 @@ class MemcacheDB {
         Status Put(const char* key, const char* value);
         Status Get(const char* key, std::string& value);
         Status Delete(const char* key);
+
+    private:
+        protocol prot_;
 };
 
 

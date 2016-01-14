@@ -2283,6 +2283,7 @@ static void reset_cmd_handler(conn *c) {
     }
 }
 
+// mark
 static void complete_nread(conn *c) {
     assert(c != NULL);
     assert(c->protocol == ascii_prot

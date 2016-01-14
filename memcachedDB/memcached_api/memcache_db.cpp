@@ -17,6 +17,8 @@
 
 #include "memcache_db.h"
 
+#include "memcache.h"
+
 
 MemcacheDB::MemcacheDB() {
 }
@@ -30,6 +32,12 @@ bool MemcacheDB::OpenDB() {
 }
 
 Status MemcacheDB::Put(const char* key, const char* value) {
+    conn c;
+    if (ascii_prot == prot_) {
+        complete_nread_ascii(c);
+    } else if (binary_prot == prot_) {
+        complete_nread_binary(c);
+    }
     Status stat;
     return stat;
 }

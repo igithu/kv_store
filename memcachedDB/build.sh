@@ -56,7 +56,7 @@ fi
 
 echo ""
 echo "*******************************************"
-echo "build the ut successfully!!"
+echo "build the memcache DB successfully!!"
 echo "*******************************************"
 echo ""
 
