@@ -33,6 +33,7 @@ class MemcacheDB {
         ~MemcacheDB();
 
         bool OpenDB();
+        void SetProtocol(protocol prot);
         Status Put(const char* key, const char* value);
         Status Get(const char* key, std::string& value);
         Status Delete(const char* key);

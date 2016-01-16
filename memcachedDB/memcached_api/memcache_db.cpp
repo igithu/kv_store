@@ -20,15 +20,18 @@
 #include "memcache.h"
 
 
-MemcacheDB::MemcacheDB() {
+MemcacheDB::MemcacheDB() : prot_(ascii_prot) {
 }
 
 MemcacheDB::~MemcacheDB() {
 }
 
-
 bool MemcacheDB::OpenDB() {
     return true;
+}
+
+void MemcacheDB::SetProtocol(protocol prot) {
+    prot_ = prot;
 }
 
 Status MemcacheDB::Put(const char* key, const char* value) {
