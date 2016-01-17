@@ -69,12 +69,21 @@ void MemcacheDB::SetProtocol(protocol prot) {
 }
 
 Status MemcacheDB::Put(const char* key, const char* value) {
+    char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
+    /*
+     * <command name> <key> <flags> <exptime> <bytes>\r\n
+     */
+    sprintf(command, "set %s\r\n%s", key, value);
+    conn c;
+    process_command(&c, command);
+/*
     conn c;
     if (ascii_prot == prot_) {
         complete_nread_ascii(c);
     } else if (binary_prot == prot_) {
         complete_nread_binary(c);
     }
+*/
     Status stat;
     return stat;
 }
