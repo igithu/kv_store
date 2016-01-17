@@ -17,13 +17,47 @@
 
 #include "memcache_db.h"
 
-#include "memcache.h"
 
-
-MemcacheDB::MemcacheDB() : prot_(ascii_prot) {
+MemcacheDB::MemcacheDB() : prot_(ascii_prot), start_lru_crawler(false), start_lru_maintainer(false) {
 }
 
 MemcacheDB::~MemcacheDB() {
+}
+
+bool MemcacheDB::MemcacheDBInit() {
+    if (start_assoc_maintenance_thread() == -1) {
+        exit(EXIT_FAILURE);
+    }
+
+    if (start_lru_crawler && start_item_crawler_thread() != 0) {
+        fprintf(stderr, "Failed to enable LRU crawler thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (start_lru_maintainer && start_lru_maintainer_thread() != 0) {
+        fprintf(stderr, "Failed to enable LRU maintainer thread\n");
+        return false;
+    }
+
+    if (start_slab_maintenance_thread() == -1) {
+        exit(EXIT_FAILURE);
+    }
+    return true;
+}
+
+bool MemcacheDB::StopMemcacheDB() {
+    stop_slab_maintenance_thread();
+
+    if (stop_lru_maintainer_thread() != 0) {
+        fprintf(stderr, "ERROR failed to stop lru thread\n");
+    }
+
+    if (stop_item_crawler_thread() != 0) {
+        fprintf(stderr, "ERROR failed to stop lru crawler thread\n");
+    }
+
+    stop_assoc_maintenance_thread()
+    return true;
 }
 
 bool MemcacheDB::OpenDB() {
