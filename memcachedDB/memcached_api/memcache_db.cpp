@@ -18,7 +18,7 @@
 #include "memcache_db.h"
 
 
-MemcacheDB::MemcacheDB() : prot_(ascii_prot), start_lru_crawler(false), start_lru_maintainer(false) {
+MemcacheDB::MemcacheDB() : prot_(ascii_prot), start_lru_crawler_(false), start_lru_maintainer_(false) {
 }
 
 MemcacheDB::~MemcacheDB() {
@@ -29,12 +29,12 @@ bool MemcacheDB::MemcacheDBInit() {
         exit(EXIT_FAILURE);
     }
 
-    if (start_lru_crawler && start_item_crawler_thread() != 0) {
+    if (start_lru_crawler_ && start_item_crawler_thread() != 0) {
         fprintf(stderr, "Failed to enable LRU crawler thread\n");
         exit(EXIT_FAILURE);
     }
 
-    if (start_lru_maintainer && start_lru_maintainer_thread() != 0) {
+    if (start_lru_maintainer_ && start_lru_maintainer_thread() != 0) {
         fprintf(stderr, "Failed to enable LRU maintainer thread\n");
         return false;
     }
@@ -68,14 +68,21 @@ void MemcacheDB::SetProtocol(protocol prot) {
     prot_ = prot;
 }
 
-Status MemcacheDB::Put(const char* key, const char* value) {
+bool MemcacheDB::Put(const char* key, const char* value) {
     char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
     /*
      * <command name> <key> <flags> <exptime> <bytes>\r\n
      */
-    sprintf(command, "set %s\r\n%s", key, value);
+    int32_t vlen = sizeof(value);
+    sprintf(command, "set %s 0 0 %d\r\n", key, vlen);
     conn c;
     process_command(&c, command);
+    if (vlen >= c.rlbytes) {
+        fprintf(stderr, "Invalid rlbytes to read: len %d\n", c.rlbytes);
+        return false;
+    }
+    memmove(c.ritem, value, c.rlbytes);
+    complete_nread(&c);
 /*
     conn c;
     if (ascii_prot == prot_) {
@@ -84,18 +91,35 @@ Status MemcacheDB::Put(const char* key, const char* value) {
         complete_nread_binary(c);
     }
 */
-    Status stat;
-    return stat;
+    return true;
 }
 
-Status MemcacheDB::Get(const char* key, std::string& value) {
-    Status stat;
-    return stat;
+bool MemcacheDB::Get(const char* key, std::string& value) {
+    char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
+    sprintf(command, "get %s\r\n", key);
+    conn c;
+    process_command(&c, command);
+
+    bool transmit_running = true
+    while (transmit_running) {
+        transmit_result trans_res = transmit(c);
+        switch (trans_res) {
+            case TRANSMIT_COMPLETE:
+                conn_release_items(&c)
+                break;
+            case TRANSMIT_SOFT_ERROR:
+                return false;
+            case TRANSMIT_INCOMPLETE:
+            case TRANSMIT_HARD_ERROR:
+                transmit_running = false;
+                break;
+        }
+    }
+    return true;
 }
 
-Status MemcacheDB::Delete(const char* key) {
-    Status stat;
-    return stat;
+bool MemcacheDB::Delete(const char* key) {
+    return true;
 }
 
 

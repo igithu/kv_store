@@ -37,14 +37,14 @@ class MemcacheDB {
         bool StopMemcacheDB();
         void SetProtocol(protocol prot);
 
-        Status Put(const char* key, const char* value);
-        Status Get(const char* key, std::string& value);
-        Status Delete(const char* key);
+        bool Put(const char* key, const char* value);
+        bool Get(const char* key, std::string& value);
+        bool Delete(const char* key);
 
     private:
         protocol prot_;
-        bool start_lru_crawler;
-        bool start_lru_maintainer;
+        bool start_lru_crawler_;
+        bool start_lru_maintainer_;
 };
 
 
