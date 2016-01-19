@@ -82,6 +82,7 @@ bool MemcacheDB::Put(const char* key, const char* value) {
         return false;
     }
     memmove(c.ritem, value, c.rlbytes);
+    c.protocol = prot_;
     complete_nread(&c);
 /*
     conn c;
@@ -100,6 +101,7 @@ bool MemcacheDB::Get(const char* key, std::string& value) {
     conn c;
     process_command(&c, command);
 
+/*
     bool transmit_running = true
     while (transmit_running) {
         transmit_result trans_res = transmit(c);
@@ -115,10 +117,15 @@ bool MemcacheDB::Get(const char* key, std::string& value) {
                 break;
         }
     }
+*/
     return true;
 }
 
 bool MemcacheDB::Delete(const char* key) {
+    char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
+    sprintf(command, "delete %s\r\n", key);
+    conn c;
+    process_command(&c, command);
     return true;
 }
 
