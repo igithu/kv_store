@@ -69,10 +69,26 @@ void MemcacheDB::SetProtocol(protocol prot) {
 }
 
 bool MemcacheDB::Put(const char* key, const char* value) {
+    int32_t req_cas_id = 0;
+    item* it = NULL;
+
+    int32_t klen = strlen(key);
+    int32_t vlen = strlen(value);
+    it = item_alloc(key, klen, flags, realtime(exptime_), vlen);
+    if (NULL == it) {
+        it = item_get(key, nkey);
+        if (NULL != it) {
+            item_unlink(it);
+            item_remove(it);
+        }
+        return false;
+    }
+    ITEM_set_cas(it, req_cas_id);
+
+
+/*
     char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
-    /*
      * <command name> <key> <flags> <exptime> <bytes>\r\n
-     */
     int32_t vlen = sizeof(value);
     sprintf(command, "set %s 0 0 %d\r\n", key, vlen);
     conn c;
@@ -84,6 +100,7 @@ bool MemcacheDB::Put(const char* key, const char* value) {
     memmove(c.ritem, value, c.rlbytes);
     c.protocol = prot_;
     complete_nread(&c);
+*/
 /*
     conn c;
     if (ascii_prot == prot_) {

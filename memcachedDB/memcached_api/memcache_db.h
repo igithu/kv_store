@@ -45,6 +45,7 @@ class MemcacheDB {
         protocol prot_;
         bool start_lru_crawler_;
         bool start_lru_maintainer_;
+        time_t expiretime_;
 };
 
 
