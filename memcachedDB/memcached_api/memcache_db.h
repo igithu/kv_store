@@ -27,6 +27,18 @@
 enum Status {
 };
 
+struct Options {
+};
+
+struct ReadOptions {
+};
+
+struct WriteOptions {
+    protocol prot;
+    int32_t cas_id;
+    time_t exptime;
+};
+
 class MemcacheDB {
     public:
         MemcacheDB();
@@ -37,15 +49,13 @@ class MemcacheDB {
         bool StopMemcacheDB();
         void SetProtocol(protocol prot);
 
-        bool Put(const char* key, const char* value);
-        bool Get(const char* key, std::string& value);
-        bool Delete(const char* key);
+        bool Put(WriteOptions& w_options, const char* key, const char* value);
+        bool Get(ReadOptions& r_options, const char* key, std::string& value);
+        bool Delete(WriteOptions& w_options, const char* key);
 
     private:
-        protocol prot_;
         bool start_lru_crawler_;
         bool start_lru_maintainer_;
-        time_t expiretime_;
 };
 
 

@@ -64,17 +64,14 @@ bool MemcacheDB::OpenDB() {
     return true;
 }
 
-void MemcacheDB::SetProtocol(protocol prot) {
-    prot_ = prot;
-}
-
-bool MemcacheDB::Put(const char* key, const char* value) {
-    int32_t req_cas_id = 0;
+bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value) {
+    int32_t req_cas_id = w_options.cas_id;
+    time_t exptime = w_options.exptime;
     item* it = NULL;
 
     int32_t klen = strlen(key);
     int32_t vlen = strlen(value);
-    it = item_alloc(key, klen, flags, realtime(exptime_), vlen);
+    it = item_alloc(key, klen, flags, realtime(exptime), vlen);
     if (NULL == it) {
         it = item_get(key, nkey);
         if (NULL != it) {
@@ -112,7 +109,7 @@ bool MemcacheDB::Put(const char* key, const char* value) {
     return true;
 }
 
-bool MemcacheDB::Get(const char* key, std::string& value) {
+bool MemcacheDB::Get(ReadOptions& r_options, const char* key, std::string& value) {
     char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
     sprintf(command, "get %s\r\n", key);
     conn c;
@@ -138,7 +135,7 @@ bool MemcacheDB::Get(const char* key, std::string& value) {
     return true;
 }
 
-bool MemcacheDB::Delete(const char* key) {
+bool MemcacheDB::Delete(WriteOptions& w_options, const char* key) {
     char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
     sprintf(command, "delete %s\r\n", key);
     conn c;
