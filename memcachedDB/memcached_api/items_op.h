@@ -7,27 +7,26 @@
 
 
 /**
- * @file memcached_operator.cpp
+ * @file items_op.h
  * @author aishuyu(asy5178@163.com)
- * @date 2016/01/20 23:26:05
+ * @date 2016/01/23 22:37:16
  * @brief
  *
  **/
 
 
 
-#include "memcached_operator.h"
 
+#ifndef __ITEMS_OP_H
+#define __ITEMS_OP_H
 
-static void process_update(conn *c, char* key, char* value, int comm, bool handle_cas) {
-}
+#include "memcached.h"
 
-
-
-
+enum store_item_type DoStoreItem(const uint32_t hv, item* it, int32_t op);
 
 
 
+#endif // __ITEMS_OP_H
 
 
 

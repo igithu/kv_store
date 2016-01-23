@@ -47,7 +47,6 @@ class MemcacheDB {
         bool OpenDB();
         bool MemcacheDBInit();
         bool StopMemcacheDB();
-        void SetProtocol(protocol prot);
 
         bool Put(WriteOptions& w_options, const char* key, const char* value);
         bool Get(ReadOptions& r_options, const char* key, std::string& value);

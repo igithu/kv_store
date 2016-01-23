@@ -67,11 +67,10 @@ bool MemcacheDB::OpenDB() {
 bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value) {
     int32_t req_cas_id = w_options.cas_id;
     time_t exptime = w_options.exptime;
-    item* it = NULL;
 
     int32_t klen = strlen(key);
     int32_t vlen = strlen(value);
-    it = item_alloc(key, klen, flags, realtime(exptime), vlen);
+    item* it = item_alloc(key, klen, flags, realtime(exptime), vlen);
     if (NULL == it) {
         it = item_get(key, nkey);
         if (NULL != it) {
@@ -81,6 +80,14 @@ bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value
         return false;
     }
     ITEM_set_cas(it, req_cas_id);
+
+    char* data = ITEM_data(it);
+    memmove(data, value, vlen);
+
+    protocol prot = w_options.prot;
+    if (ascii_prot == prot) {
+    } else if (binary_prot == prot) {
+    }
 
 
 /*
