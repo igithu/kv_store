@@ -70,6 +70,7 @@ bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value
 
     int32_t klen = strlen(key);
     int32_t vlen = strlen(value);
+    vlen += 2;
     item* it = item_alloc(key, klen, flags, realtime(exptime), vlen);
     if (NULL == it) {
         it = item_get(key, nkey);
@@ -86,59 +87,39 @@ bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value
 
     protocol prot = w_options.prot;
     if (ascii_prot == prot) {
+        strore_item(it, NREAD_REPLACE);
+        item_remove(it);
     } else if (binary_prot == prot) {
+        /* We don't actually receive the trailing two characters in the bin
+         * protocol, so we're going to just set them here */
+        *(ITEM_data(it) + it->nbytes - 2) = '\r';
+        *(ITEM_data(it) + it->nbytes - 1) = '\n';
+        strore_item(it, NREAD_REPLACE);
     }
 
-
-/*
-    char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
-     * <command name> <key> <flags> <exptime> <bytes>\r\n
-    int32_t vlen = sizeof(value);
-    sprintf(command, "set %s 0 0 %d\r\n", key, vlen);
-    conn c;
-    process_command(&c, command);
-    if (vlen >= c.rlbytes) {
-        fprintf(stderr, "Invalid rlbytes to read: len %d\n", c.rlbytes);
-        return false;
-    }
-    memmove(c.ritem, value, c.rlbytes);
-    c.protocol = prot_;
-    complete_nread(&c);
-*/
-/*
-    conn c;
-    if (ascii_prot == prot_) {
-        complete_nread_ascii(c);
-    } else if (binary_prot == prot_) {
-        complete_nread_binary(c);
-    }
-*/
     return true;
 }
 
 bool MemcacheDB::Get(ReadOptions& r_options, const char* key, std::string& value) {
-    char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
-    sprintf(command, "get %s\r\n", key);
-    conn c;
-    process_command(&c, command);
+    //int32_t req_cas_id = w_options.cas_id;
+    bool need_cas = r_options.need_cas;
+    int32_t klen = strlen(key);
+    int32_t vlen = strlen(value);
 
-/*
-    bool transmit_running = true
-    while (transmit_running) {
-        transmit_result trans_res = transmit(c);
-        switch (trans_res) {
-            case TRANSMIT_COMPLETE:
-                conn_release_items(&c)
-                break;
-            case TRANSMIT_SOFT_ERROR:
-                return false;
-            case TRANSMIT_INCOMPLETE:
-            case TRANSMIT_HARD_ERROR:
-                transmit_running = false;
-                break;
-        }
+    item* it = item_get(key, nkey);
+    if (NULL == it) {
+        return false;
     }
-*/
+
+    if (need_cas) {
+        // data cp to value and suffix to Options
+        item_remove(it);
+    } else {
+        // suffix to data
+//        memmove()
+        item_remove(it);
+    }
+    item_update(it);
     return true;
 }
 

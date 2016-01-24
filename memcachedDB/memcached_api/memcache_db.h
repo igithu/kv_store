@@ -31,6 +31,8 @@ struct Options {
 };
 
 struct ReadOptions {
+    bool need_cas;
+    char* suffix;
 };
 
 struct WriteOptions {
