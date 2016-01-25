@@ -112,22 +112,25 @@ bool MemcacheDB::Get(ReadOptions& r_options, const char* key, std::string& value
     }
 
     if (need_cas) {
-        // data cp to value and suffix to Options
-        item_remove(it);
+        value.assign(ITEM_data(it), it->nbytes);
     } else {
-        // suffix to data
-//        memmove()
-        item_remove(it);
+        value.assign(ITEM_suffix(it), it->nsuffix + it->nbytes);
     }
+    item_remove(it);
     item_update(it);
     return true;
 }
 
 bool MemcacheDB::Delete(WriteOptions& w_options, const char* key) {
-    char* command = (char*)malloc(sizeof(key) + sizeof(value) + 100);
-    sprintf(command, "delete %s\r\n", key);
-    conn c;
-    process_command(&c, command);
+    int32_t klen = strlen(key);
+    int32_t vlen = strlen(value);
+
+    item* it = item_get(key, nkey);
+    if (NULL == it) {
+        return false;
+    }
+    item_unlink(it);
+    item_remove(it);      /* release our reference */
     return true;
 }
 
