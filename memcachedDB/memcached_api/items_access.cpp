@@ -7,23 +7,23 @@
 
 
 /**
- * @file items_op.h
+ * @file items_access.cpp
  * @author aishuyu(asy5178@163.com)
- * @date 2016/01/23 22:37:16
+ * @date 2016/01/27 00:06:07
  * @brief
  *
  **/
 
 
+#include "items_access.h"
 
 
-#ifndef __ITEMS_OP_H
-#define __ITEMS_OP_H
-
-enum store_item_type do_store_item(const uint32_t hv, item* it, int32_t op);
 
 
-#endif // __ITEMS_OP_H
+
+
+
+
 
 
 

@@ -18,7 +18,7 @@
 #include "memcache_db.h"
 
 
-MemcacheDB::MemcacheDB() : prot_(ascii_prot), start_lru_crawler_(false), start_lru_maintainer_(false) {
+MemcacheDB::MemcacheDB() : start_lru_crawler_(false), start_lru_maintainer_(false) {
 }
 
 MemcacheDB::~MemcacheDB() {

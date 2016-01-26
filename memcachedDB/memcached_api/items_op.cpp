@@ -23,7 +23,7 @@
  *
  * Returns the state of storage.
  */
-enum store_item_type DoStoreItem(const uint32_t hv, item* it, int32_t op) {
+enum store_item_type do_store_item(const uint32_t hv, item* it, int32_t op) {
     char *key = ITEM_key(it);
     item *old_it = do_item_get(key, it->nkey, hv);
     enum store_item_type stored = NOT_STORED;
