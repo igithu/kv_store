@@ -3,6 +3,6 @@
 #endif
 
 AUTOMAKE_OPTIONS=foreign subdir-objects
-SUBDIRS=memcache_api
+SUBDIRS=src
 
 
