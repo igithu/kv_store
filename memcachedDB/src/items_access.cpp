@@ -17,8 +17,19 @@
 
 #include "items_access.h"
 
+#include "assoc.h"
+
+static pthread_mutex_t *item_locks;
+pthread_mutex_t atomics_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /* Lock for global stats */
 static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* size of the item lock hash table */
+static uint32_t item_lock_count;
+unsigned int item_lock_hashpower;
+#define hashsize(n) ((unsigned long int)1<<(n))
+#define hashmask(n) (hashsize(n)-1)
 
 /* item_lock() must be held for an item before any modifications to either its
  * associated hash bucket, or the structure itself.

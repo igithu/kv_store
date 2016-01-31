@@ -21,6 +21,8 @@
 #define __ITEMS_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <pthread.h>
 
 #include "items_access.h"
 

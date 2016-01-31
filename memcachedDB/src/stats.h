@@ -1,3 +1,7 @@
+
+
+#include <stdlib.h>
+
 /* stats */
 void stats_prefix_init(void);
 void stats_prefix_clear(void);

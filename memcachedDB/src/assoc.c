@@ -37,6 +37,7 @@ unsigned int hashpower = HASHPOWER_DEFAULT;
 #define hashsize(n) ((ub4)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
 
+
 /* Main hash table. This is where we look except during expansion. */
 static item** primary_hashtable = 0;
 

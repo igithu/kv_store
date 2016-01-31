@@ -301,6 +301,9 @@ struct slab_rebalance {
 };
 
 
+#define mutex_lock(x) pthread_mutex_lock(x)
+#define mutex_unlock(x) pthread_mutex_unlock(x)
+
 void item_lock(uint32_t hv);
 void *item_trylock(uint32_t hv);
 void item_trylock_unlock(void *arg);
