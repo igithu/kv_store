@@ -1,6 +1,9 @@
+
 /* slabs memory allocation */
 #ifndef SLABS_H
 #define SLABS_H
+
+#include "items_access.h"
 
 /** Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
     0 if no limit. 2nd argument is the growth factor; each slab will use a chunk

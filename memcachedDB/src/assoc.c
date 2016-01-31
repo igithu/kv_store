@@ -11,7 +11,6 @@
  * The rest of the file is licensed under the BSD license.  See LICENSE.
  */
 
-#include "items_access.h"
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/signal.h>

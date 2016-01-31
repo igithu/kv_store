@@ -17,6 +17,12 @@
 
 #include "memcache_db.h"
 
+#include <string.h>
+#include <stdlib.h>
+
+#include "assoc.h"
+#include "slabs.h"
+
 
 MemcacheDB::MemcacheDB() : start_lru_crawler_(false), start_lru_maintainer_(false) {
 }
@@ -56,7 +62,7 @@ bool MemcacheDB::StopMemcacheDB() {
         fprintf(stderr, "ERROR failed to stop lru crawler thread\n");
     }
 
-    stop_assoc_maintenance_thread()
+    stop_assoc_maintenance_thread();
     return true;
 }
 
@@ -64,14 +70,15 @@ bool MemcacheDB::OpenDB() {
     return true;
 }
 
-bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value) {
+bool MemcacheDB::Put(WriteOptions& w_options, char* key, const char* value) {
     int32_t req_cas_id = w_options.cas_id;
     time_t exptime = w_options.exptime;
 
-    int32_t klen = strlen(key);
+    int32_t nkey = strlen(key);
     int32_t vlen = strlen(value);
     vlen += 2;
-    item* it = item_alloc(key, klen, flags, realtime(exptime), vlen);
+    int32_t flags = 0;
+    item* it = item_alloc(key, nkey, flags, realtime(exptime), vlen);
     if (NULL == it) {
         it = item_get(key, nkey);
         if (NULL != it) {
@@ -87,14 +94,14 @@ bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value
 
     protocol prot = w_options.prot;
     if (ascii_prot == prot) {
-        strore_item(it, NREAD_REPLACE);
+        store_item(it, NREAD_REPLACE);
         item_remove(it);
     } else if (binary_prot == prot) {
         /* We don't actually receive the trailing two characters in the bin
          * protocol, so we're going to just set them here */
         *(ITEM_data(it) + it->nbytes - 2) = '\r';
         *(ITEM_data(it) + it->nbytes - 1) = '\n';
-        strore_item(it, NREAD_REPLACE);
+        store_item(it, NREAD_REPLACE);
     }
 
     return true;
@@ -103,8 +110,7 @@ bool MemcacheDB::Put(WriteOptions& w_options, const char* key, const char* value
 bool MemcacheDB::Get(ReadOptions& r_options, const char* key, std::string& value) {
     //int32_t req_cas_id = w_options.cas_id;
     bool need_cas = r_options.need_cas;
-    int32_t klen = strlen(key);
-    int32_t vlen = strlen(value);
+    int32_t nkey = strlen(key);
 
     item* it = item_get(key, nkey);
     if (NULL == it) {
@@ -122,8 +128,7 @@ bool MemcacheDB::Get(ReadOptions& r_options, const char* key, std::string& value
 }
 
 bool MemcacheDB::Delete(WriteOptions& w_options, const char* key) {
-    int32_t klen = strlen(key);
-    int32_t vlen = strlen(value);
+    int32_t nkey = strlen(key);
 
     item* it = item_get(key, nkey);
     if (NULL == it) {

@@ -50,7 +50,7 @@ class MemcacheDB {
         bool MemcacheDBInit();
         bool StopMemcacheDB();
 
-        bool Put(WriteOptions& w_options, const char* key, const char* value);
+        bool Put(WriteOptions& w_options, char* key, const char* value);
         bool Get(ReadOptions& r_options, const char* key, std::string& value);
         bool Delete(WriteOptions& w_options, const char* key);
 

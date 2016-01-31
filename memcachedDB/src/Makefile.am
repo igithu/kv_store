@@ -1,14 +1,14 @@
 AUTOMAKE_OPTIONS=foreign subdir-objects
 
 # top_dir = ${top_srcdir}/..
-mdb_dir = ${top_dir}/src
+mdb_dir = ${top_srcdir}/src
 
 AM_CPPFLAGS = -I${mdb_dir}
 
 #AM_LDFLAGS = -lz -lrt
 AM_LDFLAGS = -lz -lstdc++
 
-# LDADD = ${third_dir}/gperftools/lib/libtcmalloc_minimal.a \
+# LDADD = ${third_dir}/gperftools/lib/libtcmalloc_minimal.a
 
 MDB_SRC = ${mdb_dir}/memcache_db.h \
 		  ${mdb_dir}/memcache_db.cpp \
@@ -34,8 +34,8 @@ MDB_SRC = ${mdb_dir}/memcache_db.h \
 		  ${mdb_dir}/trace.h
 
 
-noinst_LIBRARIES = memcache_db.a
+noinst_LIBRARIES = libmemcache_db.a
 
-memcache_db_a_SOURCES = ${MDB_SRC}
+libmemcache_db_a_SOURCES = ${MDB_SRC}
 
 #SUBDIRS = test

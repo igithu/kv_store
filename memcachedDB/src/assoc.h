@@ -1,3 +1,7 @@
+
+#include "items_access.h"
+
+
 /* associative array */
 void assoc_init(const int hashpower_init);
 item *assoc_find(const char *key, const size_t nkey, const uint32_t hv);
