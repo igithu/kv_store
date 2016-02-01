@@ -1,6 +1,7 @@
 
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 /* stats */
 void stats_prefix_init(void);

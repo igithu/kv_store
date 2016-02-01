@@ -11,6 +11,8 @@
  * The rest of the file is licensed under the BSD license.  See LICENSE.
  */
 
+#include "assoc.h"
+
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/signal.h>
@@ -266,9 +268,9 @@ static void *assoc_maintenance_thread(void *arg) {
              * allow dynamic hash table expansion without causing significant
              * wait times.
              */
-            pause_threads(PAUSE_ALL_THREADS);
+            // pause_threads(PAUSE_ALL_THREADS);
             assoc_expand();
-            pause_threads(RESUME_ALL_THREADS);
+            // pause_threads(RESUME_ALL_THREADS);
         }
     }
     return NULL;

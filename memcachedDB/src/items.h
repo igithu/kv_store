@@ -23,19 +23,60 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdbool.h>
 
-#include "items_access.h"
+// #include "items_access.h"
 
-#define ITEM_LINKED 1
-#define ITEM_CAS 2
 
-/* temp */
-#define ITEM_SLABBED 4
+/** Maximum length of a key. */
+#define KEY_MAX_LENGTH 250
 
-/* Item was fetched at least once in its lifetime */
-#define ITEM_FETCHED 8
-/* Appended on fetch, removed on LRU shuffling */
-#define ITEM_ACTIVE 16
+/** Size of an incr buf. */
+#define INCR_MAX_STORAGE_LEN 24
+
+#define DATA_BUFFER_SIZE 2048
+#define UDP_READ_BUFFER_SIZE 65536
+#define UDP_MAX_PAYLOAD_SIZE 1400
+#define UDP_HEADER_SIZE 8
+#define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
+/* I'm told the max length of a 64-bit num converted to string is 20 bytes.
+ *  * Plus a few for spaces, \r\n, \0 */
+#define SUFFIX_SIZE 24
+
+/** Initial size of list of items being returned by "get". */
+#define ITEM_LIST_INITIAL 200
+
+/** Initial size of list of CAS suffixes appended to "gets" lines. */
+#define SUFFIX_LIST_INITIAL 20
+
+/** Initial size of the sendmsg() scatter/gather array. */
+#define IOV_LIST_INITIAL 400
+
+/** Initial number of sendmsg() argument structures to allocate. */
+#define MSG_LIST_INITIAL 10
+
+/** High water marks for buffer shrinking */
+#define READ_BUFFER_HIGHWAT 8192
+#define ITEM_LIST_HIGHWAT 400
+#define IOV_LIST_HIGHWAT 600
+#define MSG_LIST_HIGHWAT 100
+
+/* Binary protocol stuff */
+#define MIN_BIN_PKT_LENGTH 16
+#define BIN_PKT_HDR_WORDS (MIN_BIN_PKT_LENGTH/sizeof(uint32_t))
+
+
+/*
+ *  * We only reposition items in the LRU queue if they haven't been repositioned
+ *   * in this many seconds. That saves us from churning on frequently-accessed
+ *    * items.
+ *     */
+#define ITEM_UPDATE_INTERVAL 60
+
+/* unistd.h is here */
+#if HAVE_UNISTD_H
+# include <unistd.h>
+#endif
 
 /* Slab sizing definitions. */
 #define POWER_SMALLEST 1
@@ -78,8 +119,8 @@
 #define STAT_VAL_LEN 128
 
 /** Append a simple stat with a stat name, value format and value */
-#define APPEND_STAT(name, fmt, val) \
-    append_stat(name, add_stats, c, fmt, val);
+// #define APPEND_STAT(name, fmt, val) \
+//    append_stat(name, add_stats, c, fmt, val);
 
 /** Append an indexed stat with a stat name (with format), value format
     and value */
@@ -220,6 +261,17 @@ struct settings {
     bool expirezero_does_not_evict; /* exptime == 0 goes into NOEXP_LRU */
 };
 
+#define ITEM_LINKED 1
+#define ITEM_CAS 2
+
+/* temp */
+#define ITEM_SLABBED 4
+
+/* Item was fetched at least once in its lifetime */
+#define ITEM_FETCHED 8
+/* Appended on fetch, removed on LRU shuffling */
+#define ITEM_ACTIVE 16
+
 /**
  * Structure for storing items within memcached.
  */
@@ -249,7 +301,24 @@ typedef struct _stritem {
     /* then data with terminating \r\n (no terminating null; it's binary!) */
 } item;
 
+typedef struct {
+    struct _stritem *next;
+    struct _stritem *prev;
+    struct _stritem *h_next;    /* hash chain next */
+    rel_time_t      time;       /* least recent access */
+    rel_time_t      exptime;    /* expire time */
+    int             nbytes;     /* size of data */
+    unsigned short  refcount;
+    uint8_t         nsuffix;    /* length of flags-and-length string */
+    uint8_t         it_flags;   /* ITEM_* above */
+    uint8_t         slabs_clsid;/* which slab class we're in */
+    uint8_t         nkey;       /* key length, w/terminating null and padding */
+    uint32_t        remaining;  /* Max keys to crawl per slab per invocation */
+} crawler;
 
+extern struct settings settings;
+extern struct stats stats;
+extern volatile rel_time_t current_time;
 
 uint64_t get_cas_id(void);
 
@@ -298,7 +367,9 @@ enum crawler_result_type lru_crawler_crawl(char *slabs);
 void lru_crawler_pause(void);
 void lru_crawler_resume(void);
 
-
+/* Stat processing functions */
+// void append_stat(const char *name, ADD_STAT add_stats, conn *c,
+//                         const char *fmt, ...);
 
 
 #endif // __ITEMS_H

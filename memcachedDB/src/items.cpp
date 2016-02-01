@@ -14,7 +14,7 @@
  *
  **/
 
-
+#include "items.h"
 
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -28,6 +28,10 @@
 #include <time.h>
 #include <assert.h>
 #include <unistd.h>
+
+#include "slabs.h"
+#include "assoc.h"
+#include "items_access.h"
 
 /* Forward Declarations */
 static void item_link_q(item *it);
@@ -193,7 +197,7 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags,
         if (!settings.lru_maintainer_thread) {
             lru_pull_tail(id, COLD_LRU, 0, false, cur_hv);
         }
-        it = slabs_alloc(ntotal, id, &total_chunks);
+        it = (item*)slabs_alloc(ntotal, id, &total_chunks);
         if (settings.expirezero_does_not_evict)
             total_chunks -= noexp_lru_size(id);
         if (it == NULL) {
@@ -558,7 +562,7 @@ char *item_cachedump(const unsigned int slabs_clsid, const unsigned int limit, u
     pthread_mutex_lock(&lru_locks[id]);
     it = heads[id];
 
-    buffer = malloc((size_t)memlimit);
+    buffer = (char*)malloc((size_t)memlimit);
     if (buffer == 0) {
         return NULL;
     }
@@ -630,6 +634,7 @@ void item_stats_totals(ADD_STAT add_stats, void *c) {
             pthread_mutex_unlock(&lru_locks[i]);
         }
     }
+    /*
     APPEND_STAT("expired_unfetched", "%llu",
                 (unsigned long long)totals.expired_unfetched);
     APPEND_STAT("evicted_unfetched", "%llu",
@@ -654,6 +659,7 @@ void item_stats_totals(ADD_STAT add_stats, void *c) {
         APPEND_STAT("direct_reclaims", "%llu",
                     (unsigned long long)totals.direct_reclaims);
     }
+    */
 }
 
 void item_stats(ADD_STAT add_stats, void *c) {
@@ -752,7 +758,7 @@ void item_stats_sizes(ADD_STAT add_stats, void *c) {
 
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
-    unsigned int *histogram = calloc(num_buckets, sizeof(int));
+    unsigned int *histogram = (unsigned int *)calloc(num_buckets, sizeof(int));
 
     if (histogram != NULL) {
         int i;
@@ -776,7 +782,7 @@ void item_stats_sizes(ADD_STAT add_stats, void *c) {
             if (histogram[i] != 0) {
                 char key[8];
                 snprintf(key, sizeof(key), "%d", i * 32);
-                APPEND_STAT(key, "%u", histogram[i]);
+                // APPEND_STAT(key, "%u", histogram[i]);
             }
         }
         free(histogram);

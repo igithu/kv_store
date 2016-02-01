@@ -7,6 +7,9 @@
  * slab size is always 1MB, since that's the maximum item size allowed by the
  * memcached protocol.
  */
+
+#include "slabs.h"
+
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/signal.h>
@@ -19,6 +22,7 @@
 #include <string.h>
 #include <assert.h>
 #include <pthread.h>
+
 
 /* powers-of-N allocation structures */
 
@@ -326,8 +330,8 @@ bool get_stats(const char *stat_type, int nkey, ADD_STAT add_stats, void *c) {
 static void do_slabs_stats(ADD_STAT add_stats, void *c) {
     int i, total;
     /* Get the per-thread stats which contain some interesting aggregates */
-    struct thread_stats thread_stats;
-    threadlocal_stats_aggregate(&thread_stats);
+    // struct thread_stats thread_stats;
+    // threadlocal_stats_aggregate(&thread_stats);
 
     total = 0;
     for(i = POWER_SMALLEST; i <= power_largest; i++) {
@@ -352,6 +356,7 @@ static void do_slabs_stats(ADD_STAT add_stats, void *c) {
             APPEND_NUM_STAT(i, "free_chunks_end", "%u", 0);
             APPEND_NUM_STAT(i, "mem_requested", "%llu",
                             (unsigned long long)p->requested);
+            /*
             APPEND_NUM_STAT(i, "get_hits", "%llu",
                     (unsigned long long)thread_stats.slab_stats[i].get_hits);
             APPEND_NUM_STAT(i, "cmd_set", "%llu",
@@ -368,6 +373,7 @@ static void do_slabs_stats(ADD_STAT add_stats, void *c) {
                     (unsigned long long)thread_stats.slab_stats[i].cas_badval);
             APPEND_NUM_STAT(i, "touch_hits", "%llu",
                     (unsigned long long)thread_stats.slab_stats[i].touch_hits);
+            */
             total++;
         }
     }

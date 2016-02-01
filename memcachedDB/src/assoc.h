@@ -1,5 +1,8 @@
 
-#include "items_access.h"
+#include "items.h"
+
+/* Initial power multiplier for the hash table */
+#define HASHPOWER_DEFAULT 16
 
 /* associative array */
 void assoc_init(const int hashpower_init);

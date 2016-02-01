@@ -182,7 +182,7 @@ enum store_item_type store_item(item *item, int op) {
 
     hv = hash(ITEM_key(item), item->nkey);
     item_lock(hv);
-    ret = do_store_item(item, hv, op);
+    ret = do_store_item(hv, item, op);
     item_unlock(hv);
     return ret;
 }
