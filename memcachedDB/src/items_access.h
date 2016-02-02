@@ -21,8 +21,6 @@
 #define __ITEMS_ACCESS_H
 
 #include "stats.h"
-// #include "slabs.h"
-// #include "assoc.h"
 #include "items.h"
 #include "trace.h"
 #include "hash.h"
@@ -36,22 +34,10 @@
 #define NREAD_PREPEND 5
 #define NREAD_CAS 6
 
-extern time_t process_started;
-extern volatile int slab_rebalance_signal;
-
-struct slab_rebalance {
-    void *slab_start;
-    void *slab_end;
-    void *slab_pos;
-    int s_clsid;
-    int d_clsid;
-    int busy_items;
-    uint8_t done;
-};
-extern struct slab_rebalance slab_rebal;
-
 #define mutex_lock(x) pthread_mutex_lock(x)
 #define mutex_unlock(x) pthread_mutex_unlock(x)
+
+extern time_t process_started;
 
 void item_lock(uint32_t hv);
 void *item_trylock(uint32_t hv);
@@ -74,8 +60,6 @@ void  item_unlink(item *it);
 void  item_update(item *it);
 
 enum store_item_type store_item(item *item, int op);
-
-static rel_time_t realtime(const time_t exptime);
 
 #if HAVE_DROP_PRIVILEGES
 extern void drop_privileges(void);

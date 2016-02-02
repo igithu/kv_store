@@ -5,6 +5,19 @@
 
 #include "items_access.h"
 
+struct slab_rebalance {
+    void *slab_start;
+    void *slab_end;
+    void *slab_pos;
+    int s_clsid;
+    int d_clsid;
+    int busy_items;
+    uint8_t done;
+};
+
+extern struct slab_rebalance slab_rebal;
+extern volatile int slab_rebalance_signal;
+
 /** Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
     0 if no limit. 2nd argument is the growth factor; each slab will use a chunk
     size equal to the previous slab's chunk size times this factor.

@@ -17,6 +17,9 @@
  * whether it's big or little-endian. ENDIAN_LITTLE and ENDIAN_BIG
  * are set in the configure script.
  */
+# define HASH_LITTLE_ENDIAN 0
+# define HASH_BIG_ENDIAN 1
+/*
 #if ENDIAN_BIG == 1
 # define HASH_LITTLE_ENDIAN 0
 # define HASH_BIG_ENDIAN 1
@@ -29,7 +32,7 @@
 #  define HASH_BIG_ENDIAN 0
 # endif
 #endif
-
+*/
 #define rot(x,k) (((x)<<(k)) ^ ((x)>>(32-(k))))
 
 /*
