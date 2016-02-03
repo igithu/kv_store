@@ -55,6 +55,11 @@ class MemcacheDB {
         bool Delete(WriteOptions& w_options, const char* key);
 
     private:
+        // setting init
+        void InitSettings(void);
+        void InitStats(void);
+
+    private:
         bool start_lru_crawler_;
         bool start_lru_maintainer_;
 };
