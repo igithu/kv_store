@@ -59,7 +59,11 @@ MemcacheDB::~MemcacheDB() {
 bool MemcacheDB::MemcacheDBInit() {
     InitSettings();
 
+    InitStats();
+
     init_lru_maintainer();
+    assoc_init(settings.hashpower_init);
+    slabs_init(settings.maxbytes, settings.factor, /*preallocate*/true);
 
     if (init_lru_crawler() == -1) {
         exit(EXIT_FAILURE);
@@ -215,6 +219,28 @@ void MemcacheDB::InitSettings(void) {
     settings.crawls_persleep = 1000;
 }
 
+void MemcacheDB::InitStats() {
+    stats.curr_items = stats.total_items = stats.curr_conns = stats.total_conns = stats.conn_structs = 0;
+    stats.get_cmds = stats.set_cmds = stats.get_hits = stats.get_misses = stats.evictions = stats.reclaimed = 0;
+    stats.touch_cmds = stats.touch_misses = stats.touch_hits = stats.rejected_conns = 0;
+    stats.malloc_fails = 0;
+    stats.curr_bytes = stats.listen_disabled_num = 0;
+    stats.hash_power_level = stats.hash_bytes = stats.hash_is_expanding = 0;
+    stats.expired_unfetched = stats.evicted_unfetched = 0;
+    stats.slabs_moved = 0;
+    stats.lru_maintainer_juggles = 0;
+    stats.accepting_conns = true; /* assuming we start in this state. */
+    stats.slab_reassign_running = false;
+    stats.lru_crawler_running = false;
+    stats.lru_crawler_starts = 0;
+
+    /* make the time we started always be 2 seconds before we really
+       did, so time(0) - time.started is never zero.  if so, things
+       like 'settings.oldest_live' which act as booleans as well as
+       values are now false in boolean context... */
+    process_started = time(0) - ITEM_UPDATE_INTERVAL - 2;
+    stats_prefix_init();
+}
 
 
 /* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */
