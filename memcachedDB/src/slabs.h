@@ -1,11 +1,28 @@
+/***************************************************************************
+ *
+ * Copyright (c) 2015 aishuyu, Inc. All Rights Reserved
+ *
+ **************************************************************************/
 
-/* slabs memory allocation */
-#ifndef SLABS_H
-#define SLABS_H
 
-#include "items_access.h"
 
-struct slab_rebalance {
+/**
+ * @file slabs.h
+ * @author aishuyu(asy5178@163.com)
+ * @date 2016/02/08 22:36:52
+ * @brief
+ *
+ **/
+
+
+
+
+#ifndef __SLABS_H
+#define __SLABS_H
+
+#define MAX_NUMBER_OF_SLAB_CLASSES (63 + 1)
+
+struct Slab {
     void *slab_start;
     void *slab_end;
     void *slab_pos;
@@ -15,54 +32,102 @@ struct slab_rebalance {
     uint8_t done;
 };
 
-extern struct slab_rebalance slab_rebal;
-extern volatile int slab_rebalance_signal;
+struct SlabClass {
+    unsigned int size;      /* sizes of items */
+    unsigned int perslab;   /* how many items per slab */
 
-/** Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
-    0 if no limit. 2nd argument is the growth factor; each slab will use a chunk
-    size equal to the previous slab's chunk size times this factor.
-    3rd argument specifies if the slab allocator should allocate all memory
-    up front (if true), or allocate memory in chunks as it is needed (if false)
-*/
-void slabs_init(const size_t limit, const double factor, const bool prealloc);
+    void *slots;           /* list of item ptrs */
+    unsigned int sl_curr;   /* total free items in list */
 
+    unsigned int slabs;     /* how many slabs were allocated for this class */
 
-/**
- * Given object size, return id to use when allocating/freeing memory for object
- * 0 means error: can't store such a large object
- */
-
-unsigned int slabs_clsid(const size_t size);
-
-/** Allocate object of given length. 0 on error */ /*@null@*/
-void *slabs_alloc(const size_t size, unsigned int id, unsigned int *total_chunks);
-
-/** Free previously allocated object */
-void slabs_free(void *ptr, size_t size, unsigned int id);
-
-/** Adjust the stats for memory requested */
-void slabs_adjust_mem_requested(unsigned int id, size_t old, size_t ntotal);
-
-/** Return a datum for stats in binary protocol */
-bool get_stats(const char *stat_type, int nkey, ADD_STAT add_stats, void *c);
-
-/** Fill buffer with stats */ /*@null@*/
-void slabs_stats(ADD_STAT add_stats, void *c);
-
-/* Hints as to freespace in slab class */
-unsigned int slabs_available_chunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks);
-
-int start_slab_maintenance_thread(void);
-void stop_slab_maintenance_thread(void);
-
-enum reassign_result_type {
-    REASSIGN_OK=0, REASSIGN_RUNNING, REASSIGN_BADCLASS, REASSIGN_NOSPARE,
-    REASSIGN_SRC_DST_SAME
+    void **slab_list;       /* array of slab pointers */
+    unsigned int list_size; /* size of prev array */
 };
 
-enum reassign_result_type slabs_reassign(int src, int dst);
+extern Slab slab_rebal;
+extern volatile int slab_rebalance_signal;
 
-void slabs_rebalancer_pause(void);
-void slabs_rebalancer_resume(void);
+class SlabsManager {
+    public:
+        SlabsManager();
+        ~SlabsManager();
 
-#endif
+
+        /*
+         * Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
+         * 0 if no limit. 2nd argument is the growth factor; each slab will use a chunk
+         * size equal to the previous slab's chunk size times this factor.
+         * 3rd argument specifies if the slab allocator should allocate all memory
+         * up front (if true), or allocate memory in chunks as it is needed (if false)
+         */
+        void InitSlabs(const size_t limit, const double factor, const bool prealloc);
+
+        /*
+         * Given object size, return id to use when allocating/freeing memory for object
+         * 0 means error: can't store such a large object
+         */
+        unsigned int SlabsClsid(const size_t size);
+
+        /*
+         * Allocate object of given length. 0 on error
+         * */ /*@null@*/
+        void *SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks);
+
+        /*
+         * Free previously allocated object
+         */
+        void FreeSlabs(void *ptr, size_t size, unsigned int id);
+
+        /*
+         * Return a datum for stats in binary protocol
+         */
+        bool GetSlabStats(const char *stat_type, int nkey, ADD_STAT add_stats, void *c);
+
+        /*
+         * Fill buffer with stats
+         */ /*@null@*/
+        void SlabsStats(ADD_STAT add_stats, void *c);
+
+        /*
+         * Hints as to freespace in slab class
+         */
+        unsigned int SlabsAvailableChunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks);
+
+    private:
+        int NewSlab(const unsigned int id);
+        void *MemoryAllocator(size_t size);
+        void FreeSingleSlabs(void *ptr, const size_t size, unsigned int id);
+
+
+    private:
+        SlabClass slabclass[MAX_NUMBER_OF_SLAB_CLASSES];
+
+        size_t mem_limit;
+        size_t mem_malloced;
+
+        /*
+         * If the memory limit has been hit once. Used as a hint to decide when to
+         * early-wake the LRU maintenance thread
+         */
+        bool mem_limit_reached;
+        int power_largest;
+
+        void *mem_base;
+        void *mem_current;
+        size_t mem_avail;
+
+        /*
+         * Access to the slab allocator is protected by this lock
+         */
+        pthread_mutex_t slabs_lock = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_t slabs_rebalance_lock = PTHREAD_MUTEX_INITIALIZER;
+
+};
+
+
+#endif // __SLABS_H
+
+
+
+/* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */

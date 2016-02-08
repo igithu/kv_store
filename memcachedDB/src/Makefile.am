@@ -10,8 +10,8 @@ AM_LDFLAGS = -lz -lstdc++
 
 # LDADD = ${third_dir}/gperftools/lib/libtcmalloc_minimal.a
 
-MDB_SRC = ${mdb_dir}/memcache_db.h \
-		  ${mdb_dir}/memcache_db.cpp \
+MDB_SRC = ${mdb_dir}/memcached_db.h \
+		  ${mdb_dir}/memcached_db.cpp \
 		  ${mdb_dir}/items_access.h \
 		  ${mdb_dir}/items_access.cpp \
 		  ${mdb_dir}/items.h \

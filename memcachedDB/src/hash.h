@@ -1,14 +1,39 @@
-#ifndef HASH_H
-#define    HASH_H
+/***************************************************************************
+ *
+ * Copyright (c) 2015 aishuyu, Inc. All Rights Reserved
+ *
+ **************************************************************************/
 
-typedef uint32_t (*hash_func)(const void *key, size_t length);
-hash_func hash;
 
-enum hashfunc_type {
-    JENKINS_HASH=0, MURMUR3_HASH
+
+/**
+ * @file hash.h
+ * @author aishuyu(asy5178@163.com)
+ * @date 2016/02/06 21:49:12
+ * @brief
+ *
+ **/
+
+
+
+
+#ifndef __HASH_H
+#define __HASH_H
+
+typedef uint32_t (*HashFunc)(const void *key, size_t length);
+
+HashFunc hash;
+
+enum HashfuncType {
+        JENKINS_HASH=0, MURMUR3_HASH
 };
 
-int hash_init(enum hashfunc_type type);
+int InitHash(enum HashfuncType type);
 
-#endif    /* HASH_H */
 
+
+#endif // __HASH_H
+
+
+
+/* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */
