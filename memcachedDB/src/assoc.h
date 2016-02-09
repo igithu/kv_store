@@ -45,8 +45,10 @@ class AssocMaintainer : public Thread {
         int32_t AssocInsert();
         void AssocDelete(const char *key, const size_t nkey, const uint32_t hv);
 
-        int32_t Start(void);
-        void Stop(void);
+        /*
+         * run the AssocMaintainer thread
+         */
+        virtual void Run();
 
     private:
         unsigned int hashpower;

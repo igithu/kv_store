@@ -53,6 +53,7 @@ class SlabsManager {
         SlabsManager();
         ~SlabsManager();
 
+        virtual void Run();
 
         /*
          * Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
