@@ -7,9 +7,9 @@
 
 
 /**
- * @file assoc.h
+ * @file assoc_maintainer.h
  * @author aishuyu(asy5178@163.com)
- * @date 2016/02/06 21:39:21
+ * @date 2016/02/10 22:02:58
  * @brief
  *
  **/
@@ -17,10 +17,9 @@
 
 
 
-#ifndef __ASSOC_H
-#define __ASSOC_H
+#ifndef __ASSOC_MAINTAINER_H
+#define __ASSOC_MAINTAINER_H
 
-#include "item.h"
 
 /* Initial power multiplier for the hash table */
 #define HASHPOWER_DEFAULT 16
@@ -84,7 +83,11 @@ class AssocMaintainer : public Thread {
 }
 
 
-#endif // __ASSOC_H
+
+
+
+
+#endif // __ASSOC_MAINTAINER_H
 
 
 
