@@ -40,7 +40,7 @@ class AssocMaintainer : public Thread {
         ~AssocMaintainer();
 
         void InitAssoc(const int hashpower_init);
-        item* AssocFind(const char *key, const size_t nkey, const uint32_t hv);
+        Item* AssocFind(const char *key, const size_t nkey, const uint32_t hv);
         int32_t AssocInsert();
         void AssocDelete(const char *key, const size_t nkey, const uint32_t hv);
 
@@ -50,35 +50,35 @@ class AssocMaintainer : public Thread {
         virtual void Run();
 
     private:
-        unsigned int hashpower;
+        unsigned int hashpower_;
 
         /*
          * Main hash table. This is where we look except during expansion.
          */
-        item** primary_hashtable;
+        Item** primary_hashtable_;
 
         /*
          * Previous hash table. During expansion, we look here for keys that haven't
          * been moved over to the primary yet.
          */
-        item** old_hashtable;
+        Item** old_hashtable_;
 
         /*
          * Number of items in the hash table.
          */
-        unsigned int hash_items;
+        unsigned int hash_items_;
 
         /*
          * Flag: Are we in the middle of expanding now?
          */
-        bool expanding;
-        bool started_expanding;
+        bool expanding_;
+        bool started_expanding_;
 
-        unsigned int expand_bucket;
+        unsigned int expand_bucket_;
 
-        pthread_cond_t maintenance_cond = PTHREAD_COND_INITIALIZER;
-        pthread_mutex_t maintenance_lock = PTHREAD_MUTEX_INITIALIZER;
-        pthread_mutex_t hash_items_counter_lock = PTHREAD_MUTEX_INITIALIZER;
+        pthread_cond_t maintenance_cond_; // = PTHREAD_COND_INITIALIZER;
+        pthread_mutex_t maintenance_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_t hash_items_counter_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 
 }
 

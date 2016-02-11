@@ -74,28 +74,28 @@ class ItemLRUCrawler : public Thread {
         /*
          * item is the new tail
          */
-        void CrawlerLinkQ(item *it);
+        void CrawlerLinkQ(Item *it);
 
-        void CrawlerUnlinkQ(item *it);
+        void CrawlerUnlinkQ(Item *it);
 
         /*
          * This is too convoluted, but it's a difficult shuffle. Try to rewrite it
          * more clearly.
          */
-        item *CrawlQ(item *it);
+        Item *CrawlQ(Item *it);
 
         /*
          * I pulled this out to make the main thread clearer, but it reaches into the
          *  main thread's values too much. Should rethink again.
          */
-        void ItemCrawlerEvaluate(item *search, uint32_t hv, int i)
+        void ItemCrawlerEvaluate(Item *search, uint32_t hv, int i)
 
     private:
         Crawler crawlers[CRAWL_LARGEST_ID];
         CrawlerStats crawler_stats[MAX_NUMBER_OF_SLAB_CLASSES];
-        pthread_mutex_t lru_crawler_lock; // = PTHREAD_MUTEX_INITIALIZER;
-        pthread_cond_t  lru_crawler_cond; // = PTHREAD_COND_INITIALIZER;
-        pthread_mutex_t lru_crawler_stats_lock; // = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_t lru_crawler_lock_; // = PTHREAD_MUTEX_INITIALIZER;
+        pthread_cond_t  lru_crawler_cond_; // = PTHREAD_COND_INITIALIZER;
+        pthread_mutex_t lru_crawler_stats_lock_; // = PTHREAD_MUTEX_INITIALIZER;
 
 };
 

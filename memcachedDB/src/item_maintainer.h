@@ -36,36 +36,10 @@
 #define INCR_MAX_STORAGE_LEN 24
 
 /*
- * I'm told the max length of a 64-bit num converted to string is 20 bytes.
- * Plus a few for spaces, \r\n, \0
- */
-#define SUFFIX_SIZE 24
-
-/*
  * Initial size of list of items being returned by "get".
  */
 #define ITEM_LIST_INITIAL 200
-/*
- * Initial size of list of CAS suffixes appended to "gets" lines.
- */
-#define SUFFIX_LIST_INITIAL 20
 
-/*
- * Initial size of the sendmsg() scatter/gather array.
- */
-#define IOV_LIST_INITIAL 400
-
-/*
- * Initial number of sendmsg() argument structures to allocate.
- */
-#define MSG_LIST_INITIAL 10
-
-/*
- * High water marks for buffer shrinking
- */
-#define ITEM_LIST_HIGHWAT 400
-#define IOV_LIST_HIGHWAT 600
-#define MSG_LIST_HIGHWAT 100
 /*
  * Binary protocol stuff
  */
@@ -86,17 +60,12 @@
 /* slab class max is a 6-bit number, -1. */
 #define MAX_NUMBER_OF_SLAB_CLASSES (63 + 1)
 
-/** How long an object can reasonably be assumed to be locked before
-    harvesting it on a low memory condition. Default: disabled. */
-#define TAIL_REPAIR_TIME_DEFAULT 0
-
 #define STAT_KEY_LEN 128
 #define STAT_VAL_LEN 128
 
-
-
-
-/* warning: don't use these macros with a function, as it evals its arg twice */
+/*
+ * warning: don't use these macros with a function, as it evals its arg twice
+ */
 #define ITEM_get_cas(i) (((i)->it_flags & ITEM_CAS) ? \
         (i)->data->cas : (uint64_t)0)
 
@@ -195,6 +164,20 @@ class ItemMaintainer : public Thread {
         void ItemStats(ADD_STAT add_stats, void *c);
         void ItemStatsTotals(ADD_STAT add_stats, void *c);
         void ItemStatsSizes(ADD_STAT add_stats, void *c);
+
+
+    private:
+        item *ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
+        item *ItemGet(const char *key, const size_t nkey);
+        item *ItemTouch(const char *key, const size_t nkey, uint32_t exptime);
+
+        int   ItemLink(item *it);
+        void  ItemRemove(item *it);
+        int   ItemReplace(item *it, item *new_it, const uint32_t hv);
+        void  ItemUnlink(item *it);
+        void  ItemUpdate(item *it);
+
+        enum StoreItemType StoreItem(item *item, int op);
 
     private:
         item *heads[LARGEST_ID];
