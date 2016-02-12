@@ -54,17 +54,32 @@ void ItemMaintainer::DoItemRemove(Item *it) {
 void ItemMaintainer::DoItemUpdate(Item *it) {
 }
 
-/*
-void DoItemUpdateNolock(item *it);
-int  DoItemReplace(item *it, item *new_it, const uint32_t hv);
-enum StoreItemType DoStoreItem(const uint32_t hv, item* it, int32_t op);
-item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
-item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
-char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
-void ItemStats(ADD_STAT add_stats, void *c);
-void ItemStatsTotals(ADD_STAT add_stats, void *c);
-void ItemStatsSizes(ADD_STAT add_stats, void *c);
-*/
+void ItemMaintainer::DoItemUpdateNolock(Item *it) {
+}
+
+int  ItemMaintainer::DoItemReplace(Item *it, Item *new_it, const uint32_t hv) {
+}
+
+enum StoreItemType ItemMaintainer::DoStoreItem(const uint32_t hv, Item* it, int32_t op) {
+}
+
+Item *ItemMaintainer::DoItemGet(const char *key, const size_t nkey, const uint32_t hv) {
+}
+
+Item *ItemMaintainer::DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv) {
+}
+
+char *ItemMaintainer::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
+}
+
+void ItemMaintainer::ItemStats(ADD_STAT add_stats, void *c) {
+}
+
+void ItemMaintainer::ItemStatsTotals(ADD_STAT add_stats, void *c) {
+}
+
+void ItemMaintainer::ItemStatsSizes(ADD_STAT add_stats, void *c) {
+}
 
 
 

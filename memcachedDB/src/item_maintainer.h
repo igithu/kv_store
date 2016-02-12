@@ -16,7 +16,6 @@
 
 
 
-
 #ifndef __ITEM_MAINTAINER_H
 #define __ITEM_MAINTAINER_H
 
@@ -62,6 +61,18 @@
 
 #define STAT_KEY_LEN 128
 #define STAT_VAL_LEN 128
+
+#define ITEM_LINKED 1
+#define ITEM_CAS 2
+
+/* temp */
+#define ITEM_SLABBED 4
+
+/* Item was fetched at least once in its lifetime */
+#define ITEM_FETCHED 8
+/* Appended on fetch, removed on LRU shuffling */
+#define ITEM_ACTIVE 16
+
 
 /*
  * warning: don't use these macros with a function, as it evals its arg twice
@@ -120,10 +131,57 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
  */
 typedef unsigned int rel_time_t;
 
+enum Protocol {
+    ascii_prot = 3, /* arbitrary value. */
+    binary_prot,
+    negotiating_prot /* Discovering the protocol */
+};
+
+enum DeltaResultType {
+    OK, NON_NUMERIC, EOM, DELTA_ITEM_NOT_FOUND, DELTA_ITEM_CAS_MISMATCH
+};
 
 enum StoreItemType {
     NOT_STORED=0, STORED, EXISTS, NOT_FOUND
 };
+
+
+/*
+ * Structure for storing items within memcached.
+ */
+struct Item {
+    /*
+     * Protected by LRU locks
+     */
+    struct _stritem *next;
+    struct _stritem *prev;
+    /*
+     * Rest are protected by an item lock
+     */
+    struct _stritem *h_next;    /* hash chain next */
+    rel_time_t      time;       /* least recent access */
+    rel_time_t      exptime;    /* expire time */
+    int             nbytes;     /* size of data */
+    unsigned short  refcount;
+    uint8_t         nsuffix;    /* length of flags-and-length string */
+    uint8_t         it_flags;   /* ITEM_* above */
+    uint8_t         slabs_clsid;/* which slab class we're in */
+    uint8_t         nkey;       /* key length, w/terminating null and padding */
+    /*
+     * this odd type prevents type-punning issues when we do
+     * the little shuffle to save space when not using CAS.
+     */
+    union {
+        uint64_t cas;
+        char end;
+    } data[];
+    /* if it_flags & ITEM_CAS we have 8 bytes CAS */
+    /* then null-terminated key */
+    /* then " flags length\r\n" (no terminating null) */
+    /* then data with terminating \r\n (no terminating null; it's binary!) */
+};
+
+
 
 class ItemMaintainer : public Thread {
     public:
@@ -180,9 +238,9 @@ class ItemMaintainer : public Thread {
         enum StoreItemType StoreItem(item *item, int op);
 
     private:
-        item *heads[LARGEST_ID];
-        item *tails[LARGEST_ID];
-        pthread_mutex_t cas_id_lock; //  = PTHREAD_MUTEX_INITIALIZER;
+        item *heads_[LARGEST_ID];
+        item *tails_[LARGEST_ID];
+        pthread_mutex_t cas_id_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 };
 
 

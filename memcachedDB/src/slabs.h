@@ -104,25 +104,25 @@ class SlabsManager {
     private:
         SlabClass slabclass[MAX_NUMBER_OF_SLAB_CLASSES];
 
-        size_t mem_limit;
-        size_t mem_malloced;
+        size_t mem_limit_;
+        size_t mem_malloced_;
 
         /*
          * If the memory limit has been hit once. Used as a hint to decide when to
          * early-wake the LRU maintenance thread
          */
-        bool mem_limit_reached;
-        int power_largest;
+        bool mem_limit_reached_;
+        int power_largest_;
 
-        void *mem_base;
-        void *mem_current;
-        size_t mem_avail;
+        void *mem_base_;
+        void *mem_current_;
+        size_t mem_avail_;
 
         /*
          * Access to the slab allocator is protected by this lock
          */
-        pthread_mutex_t slabs_lock = PTHREAD_MUTEX_INITIALIZER;
-        pthread_mutex_t slabs_rebalance_lock = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_t slabs_lock_;
+        pthread_mutex_t slabs_rebalance_lock_;
 
 };
 

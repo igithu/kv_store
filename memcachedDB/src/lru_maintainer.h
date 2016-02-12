@@ -39,7 +39,7 @@ class LRUMaintainer : public Thread {
         void ResumeLRU();
 
     private:
-        pthread_mutex_t lru_maintainer_lock;
+        pthread_mutex_t lru_maintainer_lock_;
 
 };
 
