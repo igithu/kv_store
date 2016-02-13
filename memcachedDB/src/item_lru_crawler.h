@@ -56,8 +56,9 @@ enum CrawlerResultType {
 
 class ItemLRUCrawler : public Thread {
     public:
-        ItemLRUCrawler();
         ~ItemLRUCrawler();
+
+        static ItemLRUCrawler& GetInstance();
 
         virtual void Run();
 
@@ -70,6 +71,8 @@ class ItemLRUCrawler : public Thread {
         void ResumeCrawler();
 
     private:
+        ItemLRUCrawler();
+
         int DoLRUCrawlerStart(uint32_t id, uint32_t remaining);
         /*
          * item is the new tail
@@ -88,7 +91,9 @@ class ItemLRUCrawler : public Thread {
          * I pulled this out to make the main thread clearer, but it reaches into the
          *  main thread's values too much. Should rethink again.
          */
-        void ItemCrawlerEvaluate(Item *search, uint32_t hv, int i)
+        void ItemCrawlerEvaluate(Item *search, uint32_t hv, int i);
+
+        DISALLOW_COPY_AND_ASSIGN(ItemLRUCrawler);
 
     private:
         Crawler crawlers_[CRAWL_LARGEST_ID];

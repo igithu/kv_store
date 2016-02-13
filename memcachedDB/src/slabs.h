@@ -50,8 +50,9 @@ extern volatile int slab_rebalance_signal;
 
 class SlabsManager {
     public:
-        SlabsManager();
         ~SlabsManager();
+
+        static SlabsManager& GetInstance();
 
         virtual void Run();
 
@@ -95,11 +96,21 @@ class SlabsManager {
          */
         unsigned int SlabsAvailableChunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks);
 
+         /*
+          * If we hold this lock, rebalancer can't wake up or move
+          */
+        void PauseSlabsRebalancer();
+
+        void ResumeSlabsRebalancer();
+
     private:
+        SlabsManager();
+
         int NewSlab(const unsigned int id);
         void *MemoryAllocator(size_t size);
         void FreeSingleSlabs(void *ptr, const size_t size, unsigned int id);
 
+        DISALLOW_COPY_AND_ASSIGN(SlabsManager);
 
     private:
         SlabClass slabclass[MAX_NUMBER_OF_SLAB_CLASSES];

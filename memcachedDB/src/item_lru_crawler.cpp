@@ -25,6 +25,11 @@ ItemLRUCrawler::ItemLRUCrawler() :
 ItemLRUCrawler::~ItemLRUCrawler() {
 }
 
+ItemLRUCrawler& ItemLRUCrawler::GetInstance() {
+    static ItemLRUCrawler irc_instance;
+    return irc_instance;
+}
+
 void ItemLRUCrawler::Run() {
 }
 

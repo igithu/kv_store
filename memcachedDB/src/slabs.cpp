@@ -26,11 +26,15 @@ SlabsManager::SlabsManager() :
     mem_current_(NULL),
     mem_avail_(0),
     slabs_lock_(PTHREAD_MUTEX_INITIALIZER),
-    slabs_rebalance_lock_(PTHREAD_MUTEX_INITIALIZER)
-{
+    slabs_rebalance_lock_(PTHREAD_MUTEX_INITIALIZER) {
 }
 
 SlabsManager::~SlabsManager() {
+}
+
+SlabsManager& SlabsManager::GetInstance() {
+    static SlabsManager sm_instance;
+    return sm_instance;
 }
 
 void SlabsManager::Run() {
@@ -55,6 +59,12 @@ void SlabsManager::SlabsStats(ADD_STAT add_stats, void *c) {
 }
 
 unsigned int SlabsManager::SlabsAvailableChunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks) {
+}
+
+void SlabsManager::PauseSlabsRebalancer() {
+}
+
+void SlabsManager::ResumeSlabsRebalancer() {
 }
 
 int SlabsManager::NewSlab(const unsigned int id) {

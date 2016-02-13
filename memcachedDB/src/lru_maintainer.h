@@ -29,14 +29,21 @@ extern pthread_mutex_t lru_locks[POWER_LARGEST];
 
 class LRUMaintainer : public Thread {
     public:
-        LRUMaintainer();
         ~LRUMaintainer();
+
+        static LRUMaintainer& GetInstance();
 
         virtual void Run();
 
         int InitLRUMaintainer();
         void PauseLRU();
         void ResumeLRU();
+
+    private:
+        LRUMaintainer();
+
+        DISALLOW_COPY_AND_ASSIGN(LRUMaintainer);
+
 
     private:
         pthread_mutex_t lru_maintainer_lock_;

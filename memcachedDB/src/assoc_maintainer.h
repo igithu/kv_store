@@ -34,6 +34,13 @@ extern unsigned int item_lock_hashpower;
 typedef  unsigned long  int  ub4;   /* unsigned 4-byte quantities */
 typedef  unsigned       char ub1;   /* unsigned 1-byte quantities */
 
+enum PauseThreadTypes {
+    PAUSE_WORKER_THREADS = 0,
+    PAUSE_ALL_THREADS,
+    RESUME_ALL_THREADS,
+    RESUME_WORKER_THREADS
+};
+
 class AssocMaintainer : public Thread {
     public:
         AssocMaintainer();
@@ -48,6 +55,13 @@ class AssocMaintainer : public Thread {
          * run the AssocMaintainer thread
          */
         virtual void Run();
+
+    private:
+        /*
+         * grows the hashtable to the next power of 2.
+         */
+        void AssocExpand();
+        void PauseThreads(enum PauseThreadTypes type);
 
     private:
         unsigned int hashpower_;
@@ -75,6 +89,8 @@ class AssocMaintainer : public Thread {
         bool started_expanding_;
 
         unsigned int expand_bucket_;
+
+        bool assoc_running_;
 
         pthread_cond_t maintenance_cond_; // = PTHREAD_COND_INITIALIZER;
         pthread_mutex_t maintenance_lock_; //  = PTHREAD_MUTEX_INITIALIZER;

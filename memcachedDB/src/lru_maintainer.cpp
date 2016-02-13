@@ -22,6 +22,11 @@ LRUMaintainer::LRUMaintainer() {
 LRUMaintainer::~LRUMaintainer() {
 }
 
+LRUMaintainer& LRUMaintainer::GetInstance() {
+    static LRUMaintainer lm_instance;
+    return lm_instance;
+}
+
 void LRUMaintainer::Run() {
 }
 
