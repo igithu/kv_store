@@ -62,7 +62,7 @@ class ItemLRUCrawler : public Thread {
 
         virtual void Run();
 
-        void InitLRUCrawler();
+        bool InitLRUCrawler();
         enum CrawlerResultType LRUCrawl(char *slabs);
         /*
          * If we hold this lock, crawler can't wake up or move
@@ -96,6 +96,9 @@ class ItemLRUCrawler : public Thread {
         DISALLOW_COPY_AND_ASSIGN(ItemLRUCrawler);
 
     private:
+        bool lru_crawler_initialized_;
+        int32_t crawler_count_;
+
         Crawler crawlers_[CRAWL_LARGEST_ID];
         CrawlerStats crawler_stats_[MAX_NUMBER_OF_SLAB_CLASSES];
         pthread_mutex_t lru_crawler_lock_; // = PTHREAD_MUTEX_INITIALIZER;

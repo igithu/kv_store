@@ -19,6 +19,10 @@
 #ifndef __ITEM_MAINTAINER_H
 #define __ITEM_MAINTAINER_H
 
+#include<ev.h>
+
+#include "disallow_copy_and_assign.h"
+
 /* unistd.h is here */
 #if HAVE_UNISTD_H
 # include <unistd.h>
@@ -185,10 +189,11 @@ struct Item {
 
 class ItemMaintainer : public Thread {
     public:
-        ItemMaintainer();
         ~ItemMaintainer();
 
-        item *DoItemAlloc(
+        static ItemMaintainer& GetInstance();
+
+        Item *DoItemAlloc(
                 char *key,
                 const size_t nkey,
                 const int flags,
@@ -196,51 +201,71 @@ class ItemMaintainer : public Thread {
                 const int nbytes,
                 const uint32_t cur_hv);
 
-        void FreeItem(item *it);
+        void FreeItem(Item *it);
         bool ItemSizeOk(const size_t nkey, const int flags, const int nbytes);
 
         /*
          * may fail if transgresses limits
          */
-        int  DoItemLink(item *it, const uint32_t hv);
-        void DoItemUnlink(item *it, const uint32_t hv);
-        void DoItemUnlinkNolock(item *it, const uint32_t hv);
-        void DoItemRemove(item *it);
+        int  DoItemLink(Item *it, const uint32_t hv);
+        void DoItemUnlink(Item *it, const uint32_t hv);
+        void DoItemUnlinkNolock(Item *it, const uint32_t hv);
+        void DoItemRemove(Item *it);
 
         /*
          * update LRU time to current and reposition
          */
-        void DoItemUpdate(item *it);
-        void DoItemUpdateNolock(item *it);
-        int  DoItemReplace(item *it, item *new_it, const uint32_t hv);
+        void DoItemUpdate(Item *it);
+        void DoItemUpdateNolock(Item *it);
+        int  DoItemReplace(Item *it, Item *new_it, const uint32_t hv);
 
-        enum StoreItemType DoStoreItem(const uint32_t hv, item* it, int32_t op);
-        item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
-        item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
+        enum StoreItemType DoStoreItem(const uint32_t hv, Item* it, int32_t op);
+        Item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
+        Item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
 
         char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
         void ItemStats(ADD_STAT add_stats, void *c);
         void ItemStatsTotals(ADD_STAT add_stats, void *c);
         void ItemStatsSizes(ADD_STAT add_stats, void *c);
 
+        /*
+         * item_sizes_ interface
+         */
+        Item *GetItemSizeByIndex(int32_t index);
+        void ItemSizeIncrement(int32_t index);
+        void ItemSizeDecrement(int32_t index);
+
 
     private:
-        item *ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
-        item *ItemGet(const char *key, const size_t nkey);
-        item *ItemTouch(const char *key, const size_t nkey, uint32_t exptime);
+        ItemMaintainer();
 
-        int   ItemLink(item *it);
-        void  ItemRemove(item *it);
-        int   ItemReplace(item *it, item *new_it, const uint32_t hv);
-        void  ItemUnlink(item *it);
-        void  ItemUpdate(item *it);
+        Item *ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
+        Item *ItemGet(const char *key, const size_t nkey);
+        Item *ItemTouch(const char *key, const size_t nkey, uint32_t exptime);
 
-        enum StoreItemType StoreItem(item *item, int op);
+        int   ItemLink(Item *it);
+        void  ItemRemove(Item *it);
+        int   ItemReplace(Item *it, Item *new_it, const uint32_t hv);
+        void  ItemUnlink(Item *it);
+        void  ItemUpdate(Item *it);
+
+        enum StoreItemType StoreItem(Item *item, int op);
+
+        rel_time_t GetCurrentTime();
+
+        static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
+
+        DISALLOW_COPY_AND_ASSIGN(ItemMaintainer);
 
     private:
-        item *heads_[LARGEST_ID];
-        item *tails_[LARGEST_ID];
+        Item *heads_[LARGEST_ID];
+        Item *tails_[LARGEST_ID];
+
+        unsigned int item_sizes_[LARGEST_ID]
         pthread_mutex_t cas_id_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
+
+        rel_time_t current_time_;
+        struct ev_loop *time_loop;
 };
 
 
