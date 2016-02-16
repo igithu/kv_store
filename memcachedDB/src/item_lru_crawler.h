@@ -97,7 +97,10 @@ class ItemLRUCrawler : public Thread {
 
     private:
         bool lru_crawler_initialized_;
+        bool lru_crawler_runnng_;
         int32_t crawler_count_;
+
+        ItemMaintainer& im_instance_;
 
         Crawler crawlers_[CRAWL_LARGEST_ID];
         CrawlerStats crawler_stats_[MAX_NUMBER_OF_SLAB_CLASSES];

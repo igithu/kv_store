@@ -17,6 +17,8 @@
 
 #include "item_maintainer.h"
 
+static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
+
 ItemMaintainer::ItemMaintainer() {
 }
 
@@ -94,6 +96,47 @@ void ItemMaintainer::ItemSizeIncrement(int32_t index) {
 void ItemMaintainer::ItemSizeDecrement(int32_t index) {
 }
 
+Item *ItemMaintainer::GetItemHeadByIndex(int32_t index) {
+    pthread_mutex_lock(&lru_locks[index]);
+    item* it = heads[index];
+    pthread_mutex_lock(&lru_locks[index]);
+    return it;
+}
+
+Item *ItemMaintainer::GetItemTailByIndex(int32_t index) {
+    pthread_mutex_lock(&lru_locks[index]);
+    item* it = tails[index];
+    pthread_mutex_lock(&lru_locks[index]);
+    return it;
+}
+
+void ItemMaintainer::ItemLinkQ(Item* it) {
+    Item **head, **tail;
+    assert(it->it_flags == 1);
+    assert(it->nbytes == 0);
+    int32_t lock_id = it->slabs_clsid;
+
+    pthread_mutex_lock(&lru_locks[lock_id]);
+    head = &heads[lock_id];
+    tail = &tails[lock_id];
+
+    assert(*tail != 0);
+    assert(it != *tail);
+    assert((*head && *tail) || (*head == 0 && *tail == 0));
+
+    it->prev = *tail;
+    it->next = 0;
+    if (it->prev) {
+        assert(it->prev->next == 0);
+        it->prev->next = it;
+    }
+    *tail = it;
+    if (*head == 0) {
+        *head = it;
+    }
+    pthread_mutex_unlock(&lru_locks[lock_id]);
+}
+
 Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
 }
 
@@ -126,6 +169,44 @@ rel_time_t ItemMaintainer::GetCurrentTime() {
 }
 
 void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
+    struct timeval t = {.tv_sec = 1, .tv_usec = 0};
+    static bool initialized = false;
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+    static bool monotonic = false;
+    static time_t monotonic_start;
+#endif
+
+    if (!initialized) {
+        initialized = true;
+        /* process_started is initialized to time() - 2. We initialize to 1 so
+         * flush_all won't underflow during tests. */
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+            monotonic = true;
+            monotonic_start = ts.tv_sec - ITEM_UPDATE_INTERVAL - 2;
+        }
+#endif
+        ev_init(&timer_w_, ItemMaintainer::ClockHandler);
+        ev_timer_set(&timer_w_, 2, 0);
+        ev_timer_start(time_loop, &timer_w_);
+        ev_run(time_loop, 0);
+    }
+
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+    if (monotonic) {
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
+            return;
+        current_time = (rel_time_t) (ts.tv_sec - monotonic_start);
+        return;
+    }
+#endif
+    {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        current_time = (rel_time_t) (tv.tv_sec - process_started);
+    }
 }
 
 

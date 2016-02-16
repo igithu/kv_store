@@ -29,6 +29,7 @@ AssocMaintainer::AssocMaintainer() :
     expanding_(false),
     started_expanding_(false),
     expand_bucket_(0),
+    hash_bulk_move_(1);
     assoc_running_(true),
     maintenance_cond_(PTHREAD_COND_INITIALIZER),
     maintenance_lock_(PTHREAD_MUTEX_INITIALIZER),
@@ -51,6 +52,15 @@ void AssocMaintainer::InitAssoc(const int hashpower_init) {
     stats.hash_power_level = hashpower_;
     stats.hash_bytes = hashsize(hashpower_) * sizeof(void *);
     STATS_UNLOCK();
+
+    char *env = getenv("MEMCACHED_HASH_BULK_MOVE");
+    if (env != NULL) {
+        hash_bulk_move_ = atoi(env);
+        if (hash_bulk_move_ == 0) {
+            hash_bulk_move_ = 1;
+        }
+    }
+    pthread_mutex_init(&maintenance_lock_, NULL);
 }
 
 Item* AssocMaintainer::AssocFind(const char *key, const size_t nkey, const uint32_t hv) {
@@ -131,7 +141,7 @@ void AssocMaintainer::Run() {
         /*
          * There is only one expansion thread, so no need to global lock.
          */
-        for (int32_t i = 0; i < hash_bulk_move && expanding_; ++i) {
+        for (int32_t i = 0; i < hash_bulk_move_ && expanding_; ++i) {
             Item *it, *next;
             int bucket;
             void *item_lock = NULL;
@@ -191,6 +201,10 @@ void AssocMaintainer::Run() {
             PauseThreads(RESUME_ALL_THREADS);
         }
     }
+}
+
+void AssocMaintainer::StopAssocMaintainer() {
+    pthread_mutex_lock();
 }
 
 void AssocMaintainer::AssocExpand() {

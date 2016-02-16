@@ -56,6 +56,8 @@ class AssocMaintainer : public Thread {
          */
         virtual void Run();
 
+        void StopAssocMaintainer();
+
     private:
         /*
          * grows the hashtable to the next power of 2.
@@ -89,6 +91,7 @@ class AssocMaintainer : public Thread {
         bool started_expanding_;
 
         unsigned int expand_bucket_;
+        int32_t hash_bulk_move_;
 
         bool assoc_running_;
 

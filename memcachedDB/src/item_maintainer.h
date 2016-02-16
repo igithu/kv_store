@@ -235,6 +235,9 @@ class ItemMaintainer : public Thread {
         void ItemSizeIncrement(int32_t index);
         void ItemSizeDecrement(int32_t index);
 
+        Item *GetItemHeadByIndex(int32_t index);
+        Item *GetItemTailByIndex(int32_t index);
+        void ItemLinkQ(Item* it);
 
     private:
         ItemMaintainer();
@@ -265,7 +268,8 @@ class ItemMaintainer : public Thread {
         pthread_mutex_t cas_id_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 
         rel_time_t current_time_;
-        struct ev_loop *time_loop;
+        static struct ev_loop *time_loop_;
+        static ev_timer timer_w_;
 };
 
 
