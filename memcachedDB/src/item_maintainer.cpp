@@ -116,7 +116,6 @@ void ItemMaintainer::ItemLinkQ(Item* it) {
     assert(it->nbytes == 0);
     int32_t lock_id = it->slabs_clsid;
 
-    pthread_mutex_lock(&lru_locks[lock_id]);
     head = &heads[lock_id];
     tail = &tails[lock_id];
 
@@ -134,7 +133,39 @@ void ItemMaintainer::ItemLinkQ(Item* it) {
     if (*head == 0) {
         *head = it;
     }
-    pthread_mutex_unlock(&lru_locks[lock_id]);
+}
+
+void ItemMaintainer::ItemUnlinkQ(Item* it) {
+    Item **head, **tail;
+    int32_t lock_id = it->slabs_clsid;
+    head = &heads_[lock_id];
+    tail = &tails[lock_id];
+
+    if (*head == it) {
+        assert(it->prev == 0);
+        *head = it->next;
+    }
+    if (*tail == it) {
+        assert(it->next == 0);
+        *tail = it->prev;
+    }
+    assert(it->next != it);
+    assert(it->prev != it);
+
+    if (it->next) {
+        it->next->prev = it->prev;
+    }
+    if (it->prev) {
+        it->prev->next = it->next;
+    }
+}
+
+void ItemMaintainer::CacheLock(int32_t lock_id) {
+    pthread_mutex_lock(&cache_locks_[lock_id]);
+}
+
+void ItemMaintainer::CacheUnlock(int32_t lock_id) {
+    pthread_mutex_unlock(&cache_locks_[lock_id]);
 }
 
 Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {

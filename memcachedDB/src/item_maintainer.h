@@ -238,6 +238,10 @@ class ItemMaintainer : public Thread {
         Item *GetItemHeadByIndex(int32_t index);
         Item *GetItemTailByIndex(int32_t index);
         void ItemLinkQ(Item* it);
+        void ItemUnlinkQ(Item* it);
+
+        void CacheLock(int32_t lock_id);
+        void CacheUnlock(int32_t lock_id);
 
     private:
         ItemMaintainer();
@@ -264,7 +268,8 @@ class ItemMaintainer : public Thread {
         Item *heads_[LARGEST_ID];
         Item *tails_[LARGEST_ID];
 
-        unsigned int item_sizes_[LARGEST_ID]
+        unsigned int item_sizes_[LARGEST_ID];
+        pthread_mutex_t cache_locks_[POWER_LARGEST]
         pthread_mutex_t cas_id_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 
         rel_time_t current_time_;

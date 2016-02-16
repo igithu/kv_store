@@ -51,20 +51,19 @@ void ItemLRUCrawler::Run() {
                 if (crawlers_[i].it_flags != 1) {
                     continue;
                 }
-                pthread_mutex_lock(&lru_locks[i]);
-                search = crawler_crawl_q((item *)&crawlers[i]);
-                if (search == NULL ||
-                        (crawlers[i].remaining && --crawlers[i].remaining < 1)) {
+                im_instance_.CacheLock(i);
+                search = ItemLinkQ((Item *)&crawlers_[i]);
+                if (search == NULL || (crawlers_[i].remaining && --crawlers[i].remaining < 1)) {
                     if (settings.verbose > 2)
                         fprintf(stderr, "Nothing left to crawl for %d\n", i);
-                    crawlers[i].it_flags = 0;
+                    crawlers_[i].it_flags = 0;
                     crawler_count--;
-                    crawler_unlink_q((item *)&crawlers[i]);
-                    pthread_mutex_unlock(&lru_locks[i]);
-                    pthread_mutex_lock(&lru_crawler_stats_lock);
+                    im_instance_.ItemUnlinkQ((Item *)&crawlers_[i]);
+                    im_instance_.CacheLock(i)
+                    pthread_mutex_lock(&lru_crawler_stats_lock_);
                     crawlerstats[CLEAR_LRU(i)].end_time = current_time;
                     crawlerstats[CLEAR_LRU(i)].run_complete = true;
-                    pthread_mutex_unlock(&lru_crawler_stats_lock);
+                    pthread_mutex_unlock(&lru_crawler_stats_lock_);
                     continue;
                 }
             uint32_t hv = hash(ITEM_key(search), search->nkey);
@@ -189,7 +188,9 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
 
     for (int i = 0; i < 3; ++i) {
         uint32_t sid = tocrawl[i];
-        if (ItemMaintainer::GetInstance().GetItemSizeByIndex(sid) != NULL ) {
+        im_instance_.CacheLock(sid);
+        Item* item = im_instance_.GetItemTailByIndex(sid);
+        if (NULL != item) {
             if (settings.verbose > 2) {
                 fprintf(stderr, "Kicking LRU crawler off for LRU %d\n", sid);
             }
@@ -205,6 +206,7 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
             ++crawler_count_;
             ++starts;
         }
+        im_instance_.CacheUnlock(sid);
     }
     if (starts) {
         STATS_LOCK();
@@ -213,7 +215,7 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
         STATS_UNLOCK();
         pthread_mutex_lock(&lru_crawler_stats_lock_);
         memset(&crawler_stats_[id], 0, sizeof(CrawlerStats));
-        crawler_stats_[id].start_time = ItemMaintainer::GetInstance().GetCurrentTime();
+        crawler_stats_[id].start_time = im_instance_.GetCurrentTime();
         pthread_mutex_unlock(&lru_crawler_stats_lock_);
     }
     return starts;
