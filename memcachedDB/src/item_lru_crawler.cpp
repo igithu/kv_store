@@ -17,6 +17,7 @@
 #include "item_lru_crawler.h"
 
 #include "lru_maintainer.h"
+#include "util.h"
 
 ItemLRUCrawler::ItemLRUCrawler() :
     lru_crawler_initialized_(false),
@@ -61,52 +62,54 @@ void ItemLRUCrawler::Run() {
                     im_instance_.ItemUnlinkQ((Item *)&crawlers_[i]);
                     im_instance_.CacheLock(i)
                     pthread_mutex_lock(&lru_crawler_stats_lock_);
-                    crawlerstats[CLEAR_LRU(i)].end_time = current_time;
-                    crawlerstats[CLEAR_LRU(i)].run_complete = true;
+                    crawler_stats_[CLEAR_LRU(i)].end_time = im_instance_.GetCurrentTime();
+                    crawler_stats_[CLEAR_LRU(i)].run_complete = true;
                     pthread_mutex_unlock(&lru_crawler_stats_lock_);
                     continue;
                 }
-            uint32_t hv = hash(ITEM_key(search), search->nkey);
-            /* Attempt to hash item lock the "search" item. If locked, no
-             * other callers can incr the refcount
-             */
-            if ((hold_lock = item_trylock(hv)) == NULL) {
+                uint32_t hv = hash(ITEM_key(search), search->nkey);
+                /* Attempt to hash item lock the "search" item. If locked, no
+                 * other callers can incr the refcount
+                 */
+                if ((hold_lock = Trylock(hv)) == NULL) {
+                    im_instance_.CacheUnlock(i);
+                    continue;
+                }
+                /* Now see if the item is refcount locked */
+                if (RefcountIncr(&search->refcount) != 2) {
+                    RefcountDecr(&search->refcount);
+                    if (hold_lock)
+                        TryLockUnlock(hold_lock);
+                    im_instance_.CacheUnlock(i);
+                    continue;
+                }
+
+                /* Frees the item or decrements the refcount. */
+                /* Interface for this could improve: do the free/decr here
+                 * instead? */
+                pthread_mutex_lock(&lru_crawler_stats_lock_);
+                ItemCrawlerEvaluate(search, hv, i);
+                pthread_mutex_unlock(&lru_crawler_stats_lock_);
+
+                if (hold_lock) {
+                    TryLockUnlock(hold_lock);
+                }
                 pthread_mutex_unlock(&lru_locks[i]);
-                continue;
-            }
-            /* Now see if the item is refcount locked */
-            if (refcount_incr(&search->refcount) != 2) {
-                refcount_decr(&search->refcount);
-                if (hold_lock)
-                    item_trylock_unlock(hold_lock);
-                pthread_mutex_unlock(&lru_locks[i]);
-                continue;
-            }
 
-            /* Frees the item or decrements the refcount. */
-            /* Interface for this could improve: do the free/decr here
-             * instead? */
-            pthread_mutex_lock(&lru_crawler_stats_lock);
-            item_crawler_evaluate(search, hv, i);
-            pthread_mutex_unlock(&lru_crawler_stats_lock);
-
-            if (hold_lock)
-                item_trylock_unlock(hold_lock);
-            pthread_mutex_unlock(&lru_locks[i]);
-
-            if (crawls_persleep <= 0 && settings.lru_crawler_sleep) {
-                usleep(settings.lru_crawler_sleep);
-                crawls_persleep = settings.crawls_persleep;
+                if (crawls_persleep <= 0 && settings.lru_crawler_sleep) {
+                    usleep(settings.lru_crawler_sleep);
+                    crawls_persleep = settings.crawls_persleep;
+                }
             }
         }
+        if (settings.verbose > 2) {
+            fprintf(stderr, "LRU crawler thread sleeping\n");
+        }
+        STATS_LOCK();
+        stats.lru_crawler_running = false;
+        STATS_UNLOCK();
     }
-    if (settings.verbose > 2)
-        fprintf(stderr, "LRU crawler thread sleeping\n");
-    STATS_LOCK();
-    stats.lru_crawler_running = false;
-    STATS_UNLOCK();
-    }
-    pthread_mutex_unlock(&lru_crawler_lock);
+    pthread_mutex_unlock(&lru_crawler_lock_);
     if (settings.verbose > 2)
         fprintf(stderr, "LRU crawler thread stopping\n");
 
