@@ -19,7 +19,7 @@
 #include "item_lru_crawler.h"
 #include "lru_maintainer.h"
 #include "slabs.h"
-#include "stats_manager.h"
+#include "global.h"
 
 
 AssocMaintainer::AssocMaintainer() :
@@ -49,8 +49,8 @@ void AssocMaintainer::InitAssoc(const int hashpower_init) {
         exit(EXIT_FAILURE);
     }
     STATS_LOCK();
-    stats.hash_power_level = hashpower_;
-    stats.hash_bytes = hashsize(hashpower_) * sizeof(void *);
+    g_stats.hash_power_level = hashpower_;
+    g_stats.hash_bytes = hashsize(hashpower_) * sizeof(void *);
     STATS_UNLOCK();
 
     char *env = getenv("MEMCACHED_HASH_BULK_MOVE");
@@ -166,10 +166,10 @@ void AssocMaintainer::Run() {
                     expanding_ = false;
                     free(old_hashtable_);
                     STATS_LOCK();
-                    stats.hash_bytes -= hashsize(hashpower_ - 1) * sizeof(void *);
-                    stats.hash_is_expanding = 0;
+                    g_stats.hash_bytes -= hashsize(hashpower_ - 1) * sizeof(void *);
+                    g_stats.hash_is_expanding = 0;
                     STATS_UNLOCK();
-                    if (settings.verbose > 1)
+                    if (g_settings.verbose > 1)
                         fprintf(stderr, "Hash table expansion done\n");
                 }
             } else {
@@ -212,15 +212,15 @@ void AssocMaintainer::AssocExpand() {
 
     primary_hashtable_ = calloc(hashsize(hashpower_ + 1), sizeof(void *));
     if (primary_hashtable_) {
-        if (settings.verbose > 1)
+        if (g_settings.verbose > 1)
             fprintf(stderr, "Hash table expansion starting\n");
         ++hashpower_;
         expanding_ = true;
         expand_bucket_ = 0;
         STATS_LOCK();
-        stats.hash_power_level = hashpower_;
-        stats.hash_bytes += hashsize(hashpower_) * sizeof(void *);
-        stats.hash_is_expanding = 1;
+        g_stats.hash_power_level = hashpower_;
+        g_stats.hash_bytes += hashsize(hashpower_) * sizeof(void *);
+        g_stats.hash_is_expanding = 1;
         STATS_UNLOCK();
     } else {
         /*
