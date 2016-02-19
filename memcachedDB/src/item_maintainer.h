@@ -77,6 +77,7 @@
 /* Appended on fetch, removed on LRU shuffling */
 #define ITEM_ACTIVE 16
 
+#define LARGEST_ID POWER_LARGEST
 
 /*
  * warning: don't use these macros with a function, as it evals its arg twice
@@ -186,6 +187,24 @@ struct Item {
 };
 
 
+struct ItemStats {
+    uint64_t evicted;
+    uint64_t evicted_nonzero;
+    uint64_t reclaimed;
+    uint64_t outofmemory;
+    uint64_t tailrepairs;
+    uint64_t expired_unfetched;
+    uint64_t evicted_unfetched;
+    uint64_t crawler_reclaimed;
+    uint64_t crawler_items_checked;
+    uint64_t lrutail_reflocked;
+    uint64_t moves_to_cold;
+    uint64_t moves_to_warm;
+    uint64_t moves_within_lru;
+    uint64_t direct_reclaims;
+    rel_time_t evicted_time;
+};
+
 
 class ItemMaintainer : public Thread {
     public:
@@ -243,6 +262,8 @@ class ItemMaintainer : public Thread {
         void CacheLock(int32_t lock_id);
         void CacheUnlock(int32_t lock_id);
 
+        bool ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index);
+
     private:
         ItemMaintainer();
 
@@ -260,6 +281,8 @@ class ItemMaintainer : public Thread {
 
         rel_time_t GetCurrentTime();
 
+        bool IsFlushed(Item* it);
+
         static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
 
         DISALLOW_COPY_AND_ASSIGN(ItemMaintainer);
@@ -269,6 +292,7 @@ class ItemMaintainer : public Thread {
         Item *tails_[LARGEST_ID];
 
         unsigned int item_sizes_[LARGEST_ID];
+        ItemStats item_stats_[LARGEST_ID];
         pthread_mutex_t cache_locks_[POWER_LARGEST]
         pthread_mutex_t cas_id_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 

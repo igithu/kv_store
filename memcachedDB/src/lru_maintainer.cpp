@@ -33,6 +33,9 @@ void LRUMaintainer::Run() {
 int LRUMaintainer::InitLRUMaintainer() {
 }
 
+void LRUMaintainer::StopLRUMaintainer() {
+}
+
 void LRUMaintainer::PauseLRU() {
 }
 

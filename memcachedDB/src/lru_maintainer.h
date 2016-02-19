@@ -20,13 +20,6 @@
 #ifndef __LRU_MAINTAINER_H
 #define __LRU_MAINTAINER_H
 
-/*
- * actual cap is 255
- */
-#define POWER_LARGEST  256
-
-extern pthread_mutex_t lru_locks[POWER_LARGEST];
-
 class LRUMaintainer : public Thread {
     public:
         ~LRUMaintainer();
@@ -36,6 +29,7 @@ class LRUMaintainer : public Thread {
         virtual void Run();
 
         int InitLRUMaintainer();
+        void StopLRUMaintainer();
         void PauseLRU();
         void ResumeLRU();
 

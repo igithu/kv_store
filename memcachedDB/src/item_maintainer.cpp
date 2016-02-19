@@ -17,6 +17,8 @@
 
 #include "item_maintainer.h"
 
+#include "global.h"
+
 static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
 
 ItemMaintainer::ItemMaintainer() {
@@ -168,6 +170,35 @@ void ItemMaintainer::CacheUnlock(int32_t lock_id) {
     pthread_mutex_unlock(&cache_locks_[lock_id]);
 }
 
+bool ItemMaintainer::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index) {
+    ++item_stats_[is_index].crawler_items_checked;
+    if ((eval_item->exptime != 0 &&
+         eval_item->exptime < current_time_)
+        || IsFlushed(eval_item)) {
+        item_stats_[is_index].crawler_reclaimed++;
+        if (g_settings.verbose > 1) {
+            char *key = ITEM_key(eval_item);
+            fprintf(stderr, "LRU crawler found an expired item (flags: %d, slab: %d): ",
+                eval_item->it_flags, eval_item->slabs_clsid);
+            for (int32_t ii = 0; ii < eval_item->nkey; ++ii) {
+                fprintf(stderr, "%c", key[ii]);
+            }
+            fprintf(stderr, "\n");
+        }
+        if ((eval_item->it_flags & ITEM_FETCHED) == 0) {
+            ++item_stats_[i].expired_unfetched;
+        }
+        DoItemUnlinkNolock(eval_item, hv);
+        DoItemRemove(eval_item);
+        assert(eval_item->slabs_clsid == 0);
+        /*
+         * item maintainer execute evaluate.
+         */
+        return true;
+    }
+    return false;
+}
+
 Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
 }
 
@@ -197,6 +228,20 @@ enum StoreItemType ItemMaintainer::StoreItem(Item *item, int op) {
 
 rel_time_t ItemMaintainer::GetCurrentTime() {
     return current_time_;
+}
+
+bool ItemMaintainer::IsFlushed(Item* it) {
+    rel_time_t oldest_live = g_settings.oldest_live;
+    uint64_t cas = ITEM_get_cas(it);
+    uint64_t oldest_cas = g_settings.oldest_cas;
+    if (0 == oldest_live || oldest_live > current_time_) {
+        return false;
+    }
+    if ((it->time <= oldest_live) ||
+        (oldest_cas != 0 && cas != 0 && cas < oldest_cas)) {
+        return true;
+    }
+    return false;
 }
 
 void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
@@ -238,6 +283,7 @@ void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) 
         gettimeofday(&tv, NULL);
         current_time = (rel_time_t) (tv.tv_sec - process_started);
     }
+    ItemMaintainer::GetInstance().current_time_ = current_time;
 }
 
 

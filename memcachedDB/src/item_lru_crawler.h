@@ -63,6 +63,10 @@ class ItemLRUCrawler : public Thread {
         virtual void Run();
 
         bool InitLRUCrawler();
+        /*
+         * stop the ItemLRUCrawler thread
+         */
+        void StopItemLRUCrawler();
         enum CrawlerResultType LRUCrawl(char *slabs);
         /*
          * If we hold this lock, crawler can't wake up or move
@@ -74,12 +78,6 @@ class ItemLRUCrawler : public Thread {
         ItemLRUCrawler();
 
         int DoLRUCrawlerStart(uint32_t id, uint32_t remaining);
-        /*
-         * item is the new tail
-         */
-        void CrawlerLinkQ(Item *it);
-
-        void CrawlerUnlinkQ(Item *it);
 
         /*
          * This is too convoluted, but it's a difficult shuffle. Try to rewrite it

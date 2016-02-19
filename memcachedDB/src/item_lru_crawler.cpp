@@ -17,6 +17,7 @@
 #include "item_lru_crawler.h"
 
 #include "lru_maintainer.h"
+#include "global.h"
 #include "util.h"
 
 ItemLRUCrawler::ItemLRUCrawler() :
@@ -53,7 +54,7 @@ void ItemLRUCrawler::Run() {
                     continue;
                 }
                 im_instance_.CacheLock(i);
-                search = ItemLinkQ((Item *)&crawlers_[i]);
+                search = im_instance_.ItemLinkQ((Item *)&crawlers_[i]);
                 if (search == NULL || (crawlers_[i].remaining && --crawlers[i].remaining < 1)) {
                     if (g_settings.verbose > 2)
                         fprintf(stderr, "Nothing left to crawl for %d\n", i);
@@ -78,8 +79,9 @@ void ItemLRUCrawler::Run() {
                 /* Now see if the item is refcount locked */
                 if (RefcountIncr(&search->refcount) != 2) {
                     RefcountDecr(&search->refcount);
-                    if (hold_lock)
+                    if (hold_lock) {
                         TryLockUnlock(hold_lock);
+                    }
                     im_instance_.CacheUnlock(i);
                     continue;
                 }
@@ -129,6 +131,16 @@ bool InitLRUCrawler::InitLRUCrawler() {
     pthread_mutex_init(&lru_crawler_lock_, NULL);
     lru_crawler_initialized_ = true;
     return true;
+}
+
+void ItemLRUCrawler::StopItemLRUCrawler() {
+    pthread_mutex_lock(&lru_crawler_lock_);
+    lru_crawler_runnng_ = false;
+    pthread_cond_signal(&lru_crawler_cond_);
+    pthread_mutex_unlock(&lru_crawler_lock_);
+
+    Wait();
+    g_settings.lru_crawler = false;
 }
 
 enum CrawlerResultType ItemLRUCrawler::LRUCrawl(char *slabs) {
@@ -224,17 +236,27 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
     return starts;
 }
 
-void ItemLRUCrawler::CrawlerLinkQ(Item *it) {
-
-}
-
-void ItemLRUCrawler::CrawlerUnlinkQ(Item *it) {
-}
-
 Item *ItemLRUCrawler::CrawlQ(Item *it) {
 }
 
 void ItemLRUCrawler::ItemCrawlerEvaluate(Item *search, uint32_t hv, int i) {
+    int slab_id = CLEAR_LRU(i);
+    CrawlerStats *s = &crawler_stats_[slab_id];
+    if (im_instance_.ItemEvaluate(search, hv, i)) {
+        s->reclaimed++;
+    } else {
+        s->seen++;
+        RefcountIncr(&search->refcount);
+        rel_time_t interval_time = search->exptime - im_instance_.GetCurrentTime();
+        if (search->exptime == 0) {
+            s->noexp++;
+        } else if (interval_time > 3599) {
+            s->ttl_hourplus++;
+        } else {
+            int bucket = interval_time / 60;
+            s->histo[bucket]++;
+        }
+    }
 }
 
 
