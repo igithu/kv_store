@@ -20,6 +20,13 @@
 #ifndef __LRU_MAINTAINER_H
 #define __LRU_MAINTAINER_H
 
+enum LRUStatus {
+    HOT_LRU = 0,
+    WARM_LRU = 64,
+    COLD_LRU = 128,
+    NOEXP_LRU = 192
+};
+
 class LRUMaintainer : public Thread {
     public:
         ~LRUMaintainer();

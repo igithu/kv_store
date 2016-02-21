@@ -241,6 +241,8 @@ class ItemMaintainer : public Thread {
         enum StoreItemType DoStoreItem(const uint32_t hv, Item* it, int32_t op);
         Item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
         Item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
+        void DoItemLinkQ(Item* it);
+        void DoItemUnlinkQ(Item* it);
 
         char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
         void ItemStats(ADD_STAT add_stats, void *c);
@@ -282,6 +284,23 @@ class ItemMaintainer : public Thread {
         rel_time_t GetCurrentTime();
 
         bool IsFlushed(Item* it);
+        size_t ItemMakeHeader(
+                const uint8_t nkey,
+                const int flags,
+                const int nbytes,
+                char *suffix,
+                uint8_t *nsuffix);
+
+        /*
+         * Returns number of items remove, expired, or evicted.
+         */
+        int32_t ItemLRUPullTail(
+                const int orig_id,
+                const LRUStatus cur_lru,
+                const unsigned int total_chunks,
+                const bool do_evict,
+                const uint32_t cur_hv);
+
 
         static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
 

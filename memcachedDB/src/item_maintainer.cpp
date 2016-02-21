@@ -17,7 +17,10 @@
 
 #include "item_maintainer.h"
 
+#include "lru_maintainer.h"
+#include "slabs.h"
 #include "global.h"
+#include "util.h"
 
 static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
 
@@ -39,6 +42,96 @@ Item *ItemMaintainer::DoItemAlloc(
         const rel_time_t exptime,
         const int nbytes,
         const uint32_t cur_hv) {
+    SlabsManager& sm = SlabsManager::GetInstance();
+    uint8_t nsuffix;
+    char suffix[40];
+    size_t ntotal = ItemMakeHeader(nkey + 1, flags, nbytes, suffix, &nsuffix);
+    unsigned int id = sm.SlabsClsid(ntotal);
+    if (0 == id) {
+        return NULL;
+    }
+
+    if (g_settings.use_cas) {
+        ntotal += sizeof(uint64_t);
+    }
+
+    /* If no memory is available, attempt a direct LRU juggle/eviction */
+    /*
+     * This is a race in order to simplify lru_pull_tail; in cases where
+     * locked items are on the tail, you want them to fall out and cause
+     * occasional OOM's, rather than internally work around them.
+     * This also gives one fewer code path for slab alloc/free
+     */
+    Item *it = NULL;
+    unsigned int total_chunks = 0;
+    int loop_times = 0
+    for (; loop_times < 5; ++loop_times) {
+        /* Try to reclaim memory first */
+        if (!g_settings.lru_maintainer_thread) {
+            ItemLRUPullTail(id, COLD_LRU, 0, false, cur_hv);
+        }
+        it = sm.SlabsAllocator(ntotal, id, &total_chunks);
+        if (g_settings.expirezero_does_not_evict) {
+            CacheLock(id);
+            total_chunks -= item_sizes_[CLEAR_LRU(id)];
+            CacheUnlock(id);
+        }
+        if (it == NULL) {
+            if (g_settings.lru_maintainer_thread) {
+                ItemLRUPullTail(id, HOT_LRU, total_chunks, false, cur_hv);
+                ItemLRUPullTail(id, WARM_LRU, total_chunks, false, cur_hv);
+                ItemLRUPullTail(id, COLD_LRU, total_chunks, true, cur_hv);
+            } else {
+                ItemLRUPullTail(id, COLD_LRU, 0, true, cur_hv);
+            }
+        } else {
+            break;
+        }
+    }
+
+    if (loop_times > 0) {
+        CacheLock(id);
+        item_stats_[id].direct_reclaims += loop_times;
+        CacheUnlock(id);
+    }
+
+    if (it == NULL) {
+        CacheLock(id);
+        itemstats[id].outofmemory++;
+        CacheUnlock(id);
+        return NULL;
+    }
+
+    assert(it->slabs_clsid == 0);
+
+    /*
+     * Refcount is seeded to 1 by slabs_alloc()
+     */
+    it->next = it->prev = it->h_next = 0;
+    /*
+     * Items are initially loaded into the HOT_LRU. This is '0' but I want at
+     * least a note here. Compiler (hopefully?) optimizes this out.
+     */
+    if (g_settings.lru_maintainer_thread) {
+        if (exptime == 0 && g_settings.expirezero_does_not_evict) {
+            id |= NOEXP_LRU;
+        } else {
+            id |= HOT_LRU;
+        }
+    } else {
+        /* There is only COLD in compat-mode */
+        id |= COLD_LRU;
+    }
+    it->slabs_clsid = id;
+
+    memcpy(ITEM_key(it), key, nkey);
+    memcpy(ITEM_suffix(it), suffix, (size_t)nsuffix);
+    it->it_flags = g_settings.use_cas ? ITEM_CAS : 0;
+    it->nkey = nkey;
+    it->nbytes = nbytes;
+    it->exptime = exptime;
+    it->nsuffix = nsuffix;
+    return it;
 }
 
 void ItemMaintainer::FreeItem(Item *it) {
@@ -75,6 +168,12 @@ Item *ItemMaintainer::DoItemGet(const char *key, const size_t nkey, const uint32
 }
 
 Item *ItemMaintainer::DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv) {
+}
+
+void ItemMaintainer::DoItemLinkQ(Item* it) {
+}
+
+void ItemMaintainer::DoItemUnlinkQ(Item* it) {
 }
 
 char *ItemMaintainer::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
@@ -137,7 +236,7 @@ void ItemMaintainer::ItemLinkQ(Item* it) {
     }
 }
 
-void ItemMaintainer::ItemUnlinkQ(Item* it) {
+void ItemMaintainer::DoItemUnlinkQ(Item* it) {
     Item **head, **tail;
     int32_t lock_id = it->slabs_clsid;
     head = &heads_[lock_id];
@@ -242,6 +341,187 @@ bool ItemMaintainer::IsFlushed(Item* it) {
         return true;
     }
     return false;
+}
+
+size_t ItemMaintainer::ItemMakeHeader(const uint8_t nkey,
+                                      const int flags,
+                                      const int nbytes,
+                                      char *suffix,
+                                      uint8_t *nsuffix) {
+    /*
+     * suffix is defined at 40 chars elsewhere.
+     */
+    *nsuffix = (uint8_t) snprintf(suffix, 40, " %d %d\r\n", flags, nbytes - 2);
+    return sizeof(Item) + nkey + *nsuffix + nbytes;
+}
+
+int32_t ItemMaintainer::ItemLRUPullTail(
+        const int orig_id,
+        const LRUStatus cur_lru,
+        const unsigned int total_chunks,
+        const bool do_evict,
+        const uint32_t cur_hv) {
+    if (0 == orig_id) {
+        return 0;
+    }
+
+    Item *it = NULL;
+    LRUStatus lru_status = HOT_LRU;
+    int removed = 0;
+    int id = orig_id | cur_lru;
+
+    CacheLock(id)
+    Item* search = tails_[id];
+    ItemStats& cur_itemstats = item_stats_[id];
+    /*
+     * We walk up *only* for locked items, and if bottom is expired.
+     */
+    for (int tries = 5, Item* next_it = NULL;
+        tries > 0 && search != NULL;
+        --tries, search = next_it) {
+        void *hold_lock = NULL;
+        /*
+         * we might relink search mid-loop, so search->prev isn't reliable
+         */
+        next_it = search->prev;
+        if (search->nbytes == 0 && search->nkey == 0 && search->it_flags == 1) {
+            /*
+             * We are a crawler, ignore it.
+             */
+            ++tries;
+            continue;
+        }
+        uint32_t hv = hash(ITEM_key(search), search->nkey);
+        /*
+         * Attempt to hash item lock the "search" item. If locked, no
+         * other callers can incr the refcount. Also skip ourselves.
+         */
+        if (hv == cur_hv || (hold_lock = TryLock(hv)) == NULL) {
+            continue;
+        }
+        /*
+         * Now see if the item is refcount locked
+         */
+        if (RefcountIncr(&search->refcount) != 2) {
+            /*
+             * Note pathological case with ref'ed items in tail.
+             * Can still unlink the item, but it won't be reusable yet
+             */
+            cur_itemstats.lrutail_reflocked++;
+            /*
+             * In case of refcount leaks, enable for quick workaround.
+             * WARNING: This can cause terrible corruption
+             */
+            if (g_settings.tail_repair_time &&
+                search->time + g_settings.tail_repair_time < current_time_) {
+                cur_itemstats.tailrepairs++;
+                search->refcount = 1;
+                /*
+                 * This will call item_remove -> item_free since refcnt is 1
+                 */
+                DoItemUnlinkNolock(search, hv);
+                TryLockUnlock(hold_lock);
+                continue;
+            }
+        }
+
+        /*
+         * Expired or flushed
+         */
+        if ((search->exptime != 0 && search->exptime < current_time_) || IsFlushed(search)) {
+            cur_itemstats.reclaimed++;
+            if ((search->it_flags & ITEM_FETCHED) == 0) {
+                cur_itemstats.expired_unfetched++;
+            }
+            DoItemUnlinkNolock(search, hv);
+            /*
+             * refcnt 1 -> 0 -> item_free
+             */
+            DoItemRemove(search);
+            TryLockUnlock(hold_lock);
+            ++removed;
+
+            /*
+             * If all we're finding are expired, can keep going
+             */
+            continue;
+        }
+
+        /*
+         * If we're HOT_LRU or WARM_LRU and over size limit, send to COLD_LRU.
+         * If we're COLD_LRU, send to WARM_LRU unless we need to evict
+         */
+        uint64_t limit;
+        switch (cur_lru) {
+            case HOT_LRU:
+                limit = total_chunks * g_settings.hot_lru_pct / 100;
+            case WARM_LRU:
+                limit = total_chunks * g_settings.warm_lru_pct / 100;
+                if (item_sizes_[id] > limit) {
+                    cur_itemstats.moves_to_cold++;
+                    lru_status = COLD_LRU;
+                    DoItemUnlinkQ(search);
+                    it = search;
+                    ++removed;
+                    break;
+                } else if ((search->it_flags & ITEM_ACTIVE) != 0) {
+                    /*
+                     * Only allow ACTIVE relinking if we're not too large.
+                     */
+                    cur_itemstats.moves_within_lru++;
+                    search->it_flags &= ~ITEM_ACTIVE;
+                    DoItemUpdateNolock(search);
+                    DoItemRemove(search);
+                    TryLockUnlock(hold_lock);
+                } else {
+                    /*
+                     * Don't want to move to COLD, not active, bail out
+                     */
+                    it = search;
+                }
+                break;
+            case COLD_LRU:
+                it = search; /* No matter what, we're stopping */
+                if (do_evict) {
+                    if (g_settings.evict_to_free == 0) {
+                        /*
+                         * Don't think we need a counter for this. It'll OOM.
+                         */
+                        break;
+                    }
+                    cur_itemstats.evicted++;
+                    cur_itemstats.evicted_time = current_time_ - search->time;
+                    if (search->exptime != 0) {
+                        cur_itemstats.evicted_nonzero++;
+                    }
+                    if ((search->it_flags & ITEM_FETCHED) == 0) {
+                        cur_itemstats.evicted_unfetched++;
+                    }
+                    DoItemUnlinkNolock(search, hv);
+                } else if ((search->it_flags & ITEM_ACTIVE) != 0 && g_settings.lru_maintainer_thread) {
+                    cur_itemstats.moves_to_warm++;
+                    search->it_flags &= ~ITEM_ACTIVE;
+                    lru_status = WARM_LRU;
+                    DoItemUnlinkQ(search);
+                }
+                ++removed;
+                break;
+        }
+        if (it != NULL)
+            break;
+    }
+    CacheUnlock(id);
+
+    if (it != NULL) {
+        if (lru_status) {
+            it->slabs_clsid = ITEM_clsid(it) | lru_status;
+            ItemLinkQ(it);
+        }
+        DoItemRemove(it);
+        TryLockUnlock(hold_lock);
+    }
+
+    return removed;
 }
 
 void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
