@@ -241,8 +241,8 @@ class ItemMaintainer : public Thread {
         enum StoreItemType DoStoreItem(const uint32_t hv, Item* it, int32_t op);
         Item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
         Item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
-        void DoItemLinkQ(Item* it);
-        void DoItemUnlinkQ(Item* it);
+        void DoItemLinkQ(Item* it, bool is_crawler = false);
+        void DoItemUnlinkQ(Item* it, bool is_crawler = false);
 
         char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
         void ItemStats(ADD_STAT add_stats, void *c);

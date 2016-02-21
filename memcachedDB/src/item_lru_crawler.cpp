@@ -54,7 +54,7 @@ void ItemLRUCrawler::Run() {
                     continue;
                 }
                 im_instance_.CacheLock(i);
-                search = im_instance_.ItemLinkQ((Item *)&crawlers_[i]);
+                search = im_instance_.DoItemLinkQ((Item *)&crawlers_[i], true);
                 if (search == NULL || (crawlers_[i].remaining && --crawlers[i].remaining < 1)) {
                     if (g_settings.verbose > 2)
                         fprintf(stderr, "Nothing left to crawl for %d\n", i);
@@ -217,7 +217,7 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
             crawlers_[sid].time = 0;
             crawlers_[sid].remaining = remaining;
             crawlers_[sid].slabs_clsid = sid;
-            im_instance_.ItemLinkQ((Item *)&crawlers_[sid]);
+            im_instance_.DoItemLinkQ((Item *)&crawlers_[sid], true);
             ++crawler_count_;
             ++starts;
         }

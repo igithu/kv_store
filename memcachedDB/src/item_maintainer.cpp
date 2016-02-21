@@ -76,16 +76,15 @@ Item *ItemMaintainer::DoItemAlloc(
             total_chunks -= item_sizes_[CLEAR_LRU(id)];
             CacheUnlock(id);
         }
-        if (it == NULL) {
-            if (g_settings.lru_maintainer_thread) {
-                ItemLRUPullTail(id, HOT_LRU, total_chunks, false, cur_hv);
-                ItemLRUPullTail(id, WARM_LRU, total_chunks, false, cur_hv);
-                ItemLRUPullTail(id, COLD_LRU, total_chunks, true, cur_hv);
-            } else {
-                ItemLRUPullTail(id, COLD_LRU, 0, true, cur_hv);
-            }
+        if (NULL != it) {
+            break
+        }
+        if (g_settings.lru_maintainer_thread) {
+            ItemLRUPullTail(id, HOT_LRU, total_chunks, false, cur_hv);
+            ItemLRUPullTail(id, WARM_LRU, total_chunks, false, cur_hv);
+            ItemLRUPullTail(id, COLD_LRU, total_chunks, true, cur_hv);
         } else {
-            break;
+            ItemLRUPullTail(id, COLD_LRU, 0, true, cur_hv);
         }
     }
 
@@ -170,10 +169,16 @@ Item *ItemMaintainer::DoItemGet(const char *key, const size_t nkey, const uint32
 Item *ItemMaintainer::DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv) {
 }
 
-void ItemMaintainer::DoItemLinkQ(Item* it) {
+void ItemMaintainer::ItemLinkQ(Item* it) {
+    CacheLock(it->slabs_clsid);
+    DoItemLinkQ(it);
+    CacheUnlock(it->slabs_clsid):
 }
 
-void ItemMaintainer::DoItemUnlinkQ(Item* it) {
+void ItemMaintainer::ItemUnlinkQ(Item* it) {
+    CacheLock(it->slabs_clsid);
+    DoItemUnlinkQ(it);
+    CacheUnlock(it->slabs_clsid):
 }
 
 char *ItemMaintainer::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
@@ -198,27 +203,27 @@ void ItemMaintainer::ItemSizeDecrement(int32_t index) {
 }
 
 Item *ItemMaintainer::GetItemHeadByIndex(int32_t index) {
-    pthread_mutex_lock(&lru_locks[index]);
-    item* it = heads[index];
-    pthread_mutex_lock(&lru_locks[index]);
+    CacheLock(index);
+    item* it = heads_[index];
+    CacheUnlock(index);
     return it;
 }
 
 Item *ItemMaintainer::GetItemTailByIndex(int32_t index) {
-    pthread_mutex_lock(&lru_locks[index]);
-    item* it = tails[index];
-    pthread_mutex_lock(&lru_locks[index]);
+    CacheLock(index);
+    item* it = tails_[index];
+    CacheUnlock(index);
     return it;
 }
 
-void ItemMaintainer::ItemLinkQ(Item* it) {
+void ItemMaintainer::DoItemLinkQ(Item* it, bool is_crawler) {
     Item **head, **tail;
     assert(it->it_flags == 1);
     assert(it->nbytes == 0);
     int32_t lock_id = it->slabs_clsid;
 
-    head = &heads[lock_id];
-    tail = &tails[lock_id];
+    head = &heads_[lock_id];
+    tail = &tails_[lock_id];
 
     assert(*tail != 0);
     assert(it != *tail);
@@ -234,13 +239,16 @@ void ItemMaintainer::ItemLinkQ(Item* it) {
     if (*head == 0) {
         *head = it;
     }
+    if (!is_crawler) {
+        ++item_sizes_[lock_id];
+    }
 }
 
-void ItemMaintainer::DoItemUnlinkQ(Item* it) {
+void ItemMaintainer::DoItemUnlinkQ(Item* it, bool is_crawler) {
     Item **head, **tail;
     int32_t lock_id = it->slabs_clsid;
     head = &heads_[lock_id];
-    tail = &tails[lock_id];
+    tail = &tails_[lock_id];
 
     if (*head == it) {
         assert(it->prev == 0);
@@ -258,6 +266,9 @@ void ItemMaintainer::DoItemUnlinkQ(Item* it) {
     }
     if (it->prev) {
         it->prev->next = it->next;
+    }
+    if (!is_crawler) {
+        --item_sizes_[lock_id];
     }
 }
 
@@ -307,7 +318,7 @@ Item *ItemMaintainer::ItemGet(const char *key, const size_t nkey) {
 Item *ItemMaintainer::ItemTouch(const char *key, const size_t nkey, uint32_t exptime) {
 }
 
-int ItemMaintainer::ItemLink(Item *it) {
+int32_t ItemMaintainer::ItemLink(Item *it) {
 }
 
 void ItemMaintainer::ItemRemove(Item *it) {
@@ -434,9 +445,6 @@ int32_t ItemMaintainer::ItemLRUPullTail(
                 cur_itemstats.expired_unfetched++;
             }
             DoItemUnlinkNolock(search, hv);
-            /*
-             * refcnt 1 -> 0 -> item_free
-             */
             DoItemRemove(search);
             TryLockUnlock(hold_lock);
             ++removed;
@@ -451,12 +459,10 @@ int32_t ItemMaintainer::ItemLRUPullTail(
          * If we're HOT_LRU or WARM_LRU and over size limit, send to COLD_LRU.
          * If we're COLD_LRU, send to WARM_LRU unless we need to evict
          */
-        uint64_t limit;
         switch (cur_lru) {
-            case HOT_LRU:
-                limit = total_chunks * g_settings.hot_lru_pct / 100;
+            // case HOT_LRU:
             case WARM_LRU:
-                limit = total_chunks * g_settings.warm_lru_pct / 100;
+                uint64_t limit = total_chunks * g_settings.warm_lru_pct / 100;
                 if (item_sizes_[id] > limit) {
                     cur_itemstats.moves_to_cold++;
                     lru_status = COLD_LRU;
@@ -484,9 +490,6 @@ int32_t ItemMaintainer::ItemLRUPullTail(
                 it = search; /* No matter what, we're stopping */
                 if (do_evict) {
                     if (g_settings.evict_to_free == 0) {
-                        /*
-                         * Don't think we need a counter for this. It'll OOM.
-                         */
                         break;
                     }
                     cur_itemstats.evicted++;
@@ -507,12 +510,13 @@ int32_t ItemMaintainer::ItemLRUPullTail(
                 ++removed;
                 break;
         }
-        if (it != NULL)
+        if (NULL != it) {
             break;
+        }
     }
     CacheUnlock(id);
 
-    if (it != NULL) {
+    if (NULL != it) {
         if (lru_status) {
             it->slabs_clsid = ITEM_clsid(it) | lru_status;
             ItemLinkQ(it);
