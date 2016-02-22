@@ -107,9 +107,9 @@ void ItemLRUCrawler::Run() {
         if (g_settings.verbose > 2) {
             fprintf(stderr, "LRU crawler thread sleeping\n");
         }
-        STATS_LOCK();
+        StatsLock();
         g_stats.lru_crawler_running = false;
-        STATS_UNLOCK();
+        StatsUnlock();
     }
     pthread_mutex_unlock(&lru_crawler_lock_);
     if (g_settings.verbose > 2)

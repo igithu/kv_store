@@ -18,9 +18,14 @@
 #include "item_maintainer.h"
 
 #include "lru_maintainer.h"
+#include "assoc_maintainer.h"
 #include "slabs.h"
 #include "global.h"
 #include "util.h"
+
+
+static SlabsManager& sm_instance = SlabsManager::GetInstance();
+static AssocMaintainer& am_instance = AssocMaintainer::GetInstance();
 
 static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
 
@@ -42,11 +47,11 @@ Item *ItemMaintainer::DoItemAlloc(
         const rel_time_t exptime,
         const int nbytes,
         const uint32_t cur_hv) {
-    SlabsManager& sm = SlabsManager::GetInstance();
+    SlabsManager& sm_instance = SlabsManager::GetInstance();
     uint8_t nsuffix;
     char suffix[40];
     size_t ntotal = ItemMakeHeader(nkey + 1, flags, nbytes, suffix, &nsuffix);
-    unsigned int id = sm.SlabsClsid(ntotal);
+    unsigned int id = sm_instance.SlabsClsid(ntotal);
     if (0 == id) {
         return NULL;
     }
@@ -70,7 +75,7 @@ Item *ItemMaintainer::DoItemAlloc(
         if (!g_settings.lru_maintainer_thread) {
             ItemLRUPullTail(id, COLD_LRU, 0, false, cur_hv);
         }
-        it = sm.SlabsAllocator(ntotal, id, &total_chunks);
+        it = sm_instance.SlabsAllocator(ntotal, id, &total_chunks);
         if (g_settings.expirezero_does_not_evict) {
             CacheLock(id);
             total_chunks -= item_sizes_[CLEAR_LRU(id)];
@@ -134,30 +139,112 @@ Item *ItemMaintainer::DoItemAlloc(
 }
 
 void ItemMaintainer::FreeItem(Item *it) {
+    assert((it->it_flags & ITEM_LINKED) == 0);
+    assert(it != heads[it->slabs_clsid]);
+    assert(it != tails[it->slabs_clsid]);
+    assert(it->refcount == 0);
+
+    /*
+     * so slab size changer can tell later if item is already free or not
+     */
+    sm_instance.FreeSlabs(it, ITEM_ntotal(it), ITEM_clsid(it));
 }
 
 bool ItemMaintainer::ItemSizeOk(const size_t nkey, const int flags, const int nbytes) {
+    char prefix[40];
+    uint8_t nsuffix;
+
+    size_t ntotal = ItemMakeHeader(nkey + 1, flags, nbytes, prefix, &nsuffix);
+    if (g_settings.use_cas) {
+        ntotal += sizeof(uint64_t);
+    }
+
+    return im_instance.SlabsClsid(ntotal) != 0;
 }
 
 int  ItemMaintainer::DoItemLink(Item *it, const uint32_t hv) {
+    assert((it->it_flags & (ITEM_LINKED | ITEM_SLABBED)) == 0);
+    it->it_flags |= ITEM_LINKED;
+    it->time = current_time_;
+
+    StatsLock();
+    g_stats.curr_bytes += ITEM_ntotal(it);
+    g_stats.curr_items += 1;
+    g_stats.total_items += 1;
+    StatsUnlock();
+
+    /* Allocate a new CAS ID on link. */
+    ITEM_set_cas(it, (g_settings.use_cas) ? GetCasId() : 0);
+    am_instance.AssocInsert(it, hv);
+    ItemLinkQ(it);
+    RefcountIncrr(&it->refcount);
+    return 1;
 }
 
 void ItemMaintainer::DoItemUnlink(Item *it, const uint32_t hv) {
+    if ((it->it_flags & ITEM_LINKED) == 0) {
+        return;
+    }
+    it->it_flags &= ~ITEM_LINKED;
+    StatsLock();
+    g_stats.curr_bytes -= ITEM_ntotal(it);
+    g_stats.curr_items -= 1;
+    StatsUnlock();
+    am_instance.AssocDelete(ITEM_key(it), it->nkey, hv);
+    ItemUnlinkQ(it);
+    DoItemRemove(it);
 }
 
 void ItemMaintainer::DoItemUnlinkNolock(Item *it, const uint32_t hv) {
+    /*
+     * memcached code
+     */
+    DoItemUnlink(it, hv);
 }
 
 void ItemMaintainer::DoItemRemove(Item *it) {
+    assert((it->it_flags & ITEM_SLABBED) == 0);
+    assert(it->refcount > 0);
+
+    if (RefcountDecr(&it->refcount) == 0) {
+        FreeItem(it);
+    }
 }
 
 void ItemMaintainer::DoItemUpdate(Item *it) {
+    if (it->time >= current_tim_ - ITEM_UPDATE_INTERVAL) {
+        return;
+    }
+    assert((it->it_flags & ITEM_SLABBED) == 0);
+
+    if ((it->it_flags & ITEM_LINKED) == 0) {
+        return
+    }
+    it->time = current_time_;
+    if (!g_settings.lru_maintainer_thread) {
+        ItemUnlinkQ(it);
+        ItemLinkQ(it);
+    }
 }
 
 void ItemMaintainer::DoItemUpdateNolock(Item *it) {
+    if (it->time >= current_time_ - ITEM_UPDATE_INTERVAL) {
+        return;
+    }
+    assert((it->it_flags & ITEM_SLABBED) == 0);
+
+    if ((it->it_flags & ITEM_LINKED) != 0) {
+        DoItemUnlinkQ(it);
+        it->time = current_time_;
+        DoItemLinkQ(it);
+    }
 }
 
 int  ItemMaintainer::DoItemReplace(Item *it, Item *new_it, const uint32_t hv) {
+    assert((it->it_flags & ITEM_SLABBED) == 0);
+    DoItemUnlink(it, hv);
+    return DoItemLink(new_it, hv);
+
 }
 
 enum StoreItemType ItemMaintainer::DoStoreItem(const uint32_t hv, Item* it, int32_t op) {
@@ -310,6 +397,10 @@ bool ItemMaintainer::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index
 }
 
 Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
+    /*
+     * do_item_alloc handles its own locks
+     */
+    return DoItemAlloc(key, nkey, flags, exptime, nbytes, 0);
 }
 
 Item *ItemMaintainer::ItemGet(const char *key, const size_t nkey) {

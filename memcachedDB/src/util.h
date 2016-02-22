@@ -27,8 +27,14 @@ void Unlock(uint32_t hv);
 
 unsigned short RefcountIncr(unsigned short *refcount);
 unsigned short RefcountDecr(unsigned short *refcount);
-void StatsLOCK(void);
-void StatsUnlOCK(void);
+void StatsLock(void);
+void StatsUnlock(void);
+
+/*
+ * Get the next CAS id for a new item.
+ * TODO: refactor some atomics for this.
+ */
+uint64_t GetCasId();
 
 
 /*
