@@ -266,6 +266,11 @@ class ItemMaintainer : public Thread {
 
         bool ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index);
 
+        void Lock(uint32_t hv);
+        void *TryLock(uint32_t hv);
+        void TryLockUnlock(void *arg);
+        void Unlock(uint32_t hv);
+
     private:
         ItemMaintainer();
 
@@ -307,17 +312,18 @@ class ItemMaintainer : public Thread {
         DISALLOW_COPY_AND_ASSIGN(ItemMaintainer);
 
     private:
-        Item *heads_[LARGEST_ID];
-        Item *tails_[LARGEST_ID];
+        Item **heads_[LARGEST_ID];
+        Item **tails_[LARGEST_ID];
 
         unsigned int item_sizes_[LARGEST_ID];
         ItemStats item_stats_[LARGEST_ID];
         pthread_mutex_t cache_locks_[POWER_LARGEST]
-        pthread_mutex_t cas_id_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 
         rel_time_t current_time_;
         static struct ev_loop *time_loop_;
         static ev_timer timer_w_;
+
+        pthread_mutex_t *item_locks_;
 };
 
 

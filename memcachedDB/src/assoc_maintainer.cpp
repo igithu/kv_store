@@ -18,10 +18,12 @@
 
 #include "item_lru_crawler.h"
 #include "lru_maintainer.h"
+#include "item_maintainer.h"
 #include "slabs.h"
 #include "global.h"
 #include "util.h"
 
+static ItemMaintainer& im_instance = ItemMaintainer::GetInstance();
 
 AssocMaintainer::AssocMaintainer() :
     primary_hashtable_(NULL),

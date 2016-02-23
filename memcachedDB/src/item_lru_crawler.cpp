@@ -28,9 +28,17 @@ ItemLRUCrawler::ItemLRUCrawler() :
     lru_crawler_lock_(PTHREAD_MUTEX_INITIALIZER),
     lru_crawler_cond_(PTHREAD_COND_INITIALIZER),
     lru_crawler_stats_lock_(PTHREAD_MUTEX_INITIALIZER) {
+        crawlers_ = calloc(CRAWL_LARGEST_ID, sizeof(Crawler));
+        crawler_stats_ = calloc(MAX_NUMBER_OF_SLAB_CLASSES, sizeof(CrawlerStats));
 }
 
 ItemLRUCrawler::~ItemLRUCrawler() {
+    if (NULL != crawlers_) {
+        free(crawlers_);
+    }
+    if (NULL != crawler_stats_) {
+        free(crawler_stats_);
+    }
 }
 
 ItemLRUCrawler& ItemLRUCrawler::GetInstance() {

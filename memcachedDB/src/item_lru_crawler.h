@@ -100,8 +100,8 @@ class ItemLRUCrawler : public Thread {
 
         ItemMaintainer& im_instance_;
 
-        Crawler crawlers_[CRAWL_LARGEST_ID];
-        CrawlerStats crawler_stats_[MAX_NUMBER_OF_SLAB_CLASSES];
+        Crawler *crawlers_;
+        CrawlerStats *crawler_stats_;
         pthread_mutex_t lru_crawler_lock_; // = PTHREAD_MUTEX_INITIALIZER;
         pthread_cond_t  lru_crawler_cond_; // = PTHREAD_COND_INITIALIZER;
         pthread_mutex_t lru_crawler_stats_lock_; // = PTHREAD_MUTEX_INITIALIZER;

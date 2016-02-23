@@ -20,6 +20,8 @@
 #ifndef __ASSOC_MAINTAINER_H
 #define __ASSOC_MAINTAINER_H
 
+#include "item_maintainer.h"
+
 
 /* Initial power multiplier for the hash table */
 #define HASHPOWER_DEFAULT 16
@@ -28,8 +30,6 @@
 #define hashmask(n) (hashsize(n)-1)
 
 extern unsigned int hashpower;
-extern unsigned int item_lock_hashpower;
-
 
 typedef  unsigned long  int  ub4;   /* unsigned 4-byte quantities */
 typedef  unsigned       char ub1;   /* unsigned 1-byte quantities */
@@ -48,7 +48,7 @@ class AssocMaintainer : public Thread {
 
         void InitAssoc(const int hashpower_init);
         Item* AssocFind(const char *key, const size_t nkey, const uint32_t hv);
-        int32_t AssocInsert();
+        int32_t AssocInsert(Item *it, const uint32_t hv);
         void AssocDelete(const char *key, const size_t nkey, const uint32_t hv);
 
         /*

@@ -19,6 +19,7 @@
 static pthread_mutex_t cas_id_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void Lock(uint32_t hv) {
+    pthread_mutex_lock()
 }
 
 void *TryLock(uint32_t hv) {

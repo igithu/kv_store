@@ -26,13 +26,52 @@
 
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
 static AssocMaintainer& am_instance = AssocMaintainer::GetInstance();
+static int32_t power = 13; // for now
 
 static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
 
 ItemMaintainer::ItemMaintainer() {
+    heads_ = calloc(LARGEST_ID, sizeof(Item*));
+    tails_ = calloc(LARGEST_ID, sizeof(Item*));
+
+    item_sizes_ = calloc(LARGEST_ID, sizeof(unsigned int));
+    item_stats_ = calloc(LARGEST_ID, sizeof(ItemStats));
+
+    cache_locks_ = calloc(POWER_LARGEST, sizeof(pthread_mutex_t));
+
+    int32_t lock_cnt = hashsize(power);
+    item_locks_ = calloc(lock_cnt, sizeof(pthread_mutex_t));
+
+    for (int32_t i = 0; i < LARGEST_ID; ++i) {
+        memset(&item_sizes_[i], 0, sizeof(unsigned int));
+        memset(&item_stats_[i], 0, sizeof(ItemStats));
+    }
+
+    for (i = 0; i < POWER_LARGEST; ++i) {
+        pthread_mutex_init(&cache_locks_[i], NULL);
+    }
+
+    for (i = 0; i < lock_cnt; ++i) {
+        pthread_mutex_init(&item_locks_[i], NULL);
+    }
 }
 
 ItemMaintainer::~ItemMaintainer() {
+    if (NULL != heads_) {
+        free(heads_);
+    }
+
+    if (NULL != tails_) {
+        free(tails_);
+    }
+
+    if (NULL != cache_locks_) {
+        free(cache_locks_);
+    }
+
+    if (NULL != item_locks_) {
+        free(item_locks_);
+    }
 }
 
 ItemMaintainer& ItemMaintainer::GetInstance() {
@@ -394,6 +433,26 @@ bool ItemMaintainer::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index
         return true;
     }
     return false;
+}
+
+void ItemMaintainer::Lock(uint32_t hv) {
+    pthread_mutex_lock(&item_locks_[hv & hashmask(power)]);
+}
+
+void *ItemMaintainer::TryLock(uint32_t hv) {
+    pthread_mutex_t *lock = &item_locks_[hv & hashmask(power)];
+    if (pthread_mutex_trylock(lock) == 0) {
+        return lock;
+    }
+    return NULL;
+}
+
+void ItemMaintainer::TryLockUnlock(void *arg) {
+    pthread_mutex_unlock((pthread_mutex_t *) lock);
+}
+
+void ItemMaintainer::Unlock(uint32_t hv) {
+    pthread_mutex_unlock(&item_locks_[hv & hashmask(item_lock_hashpower)]);
 }
 
 Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
