@@ -20,11 +20,6 @@
 #ifndef __UTIL_H
 #define __UTIL_H
 
-void Lock(uint32_t hv);
-void *TryLock(uint32_t hv);
-void TryLockUnlock(void *arg);
-void Unlock(uint32_t hv);
-
 unsigned short RefcountIncr(unsigned short *refcount);
 unsigned short RefcountDecr(unsigned short *refcount);
 void StatsLock(void);

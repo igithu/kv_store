@@ -26,7 +26,10 @@
 
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
 static AssocMaintainer& am_instance = AssocMaintainer::GetInstance();
-static int32_t power = 13; // for now
+/*
+ *
+ */
+static int32_t lg_power = 13;
 
 static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
 
@@ -39,13 +42,8 @@ ItemMaintainer::ItemMaintainer() {
 
     cache_locks_ = calloc(POWER_LARGEST, sizeof(pthread_mutex_t));
 
-    int32_t lock_cnt = hashsize(power);
+    int32_t lock_cnt = hashsize(lg_power);
     item_locks_ = calloc(lock_cnt, sizeof(pthread_mutex_t));
-
-    for (int32_t i = 0; i < LARGEST_ID; ++i) {
-        memset(&item_sizes_[i], 0, sizeof(unsigned int));
-        memset(&item_stats_[i], 0, sizeof(ItemStats));
-    }
 
     for (i = 0; i < POWER_LARGEST; ++i) {
         pthread_mutex_init(&cache_locks_[i], NULL);
@@ -58,10 +56,20 @@ ItemMaintainer::ItemMaintainer() {
 
 ItemMaintainer::~ItemMaintainer() {
     if (NULL != heads_) {
+        for (int i = 0; i < LARGEST_ID; ++i) {
+            if (NULL != heads_[i]) {
+                free(heads_[i]);
+            }
+        }
         free(heads_);
     }
 
     if (NULL != tails_) {
+        for (int i = 0; i < LARGEST_ID; ++i) {
+            if (NULL != tails_[i]) {
+                free(tails_[i]);
+            }
+        }
         free(tails_);
     }
 
@@ -436,11 +444,11 @@ bool ItemMaintainer::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index
 }
 
 void ItemMaintainer::Lock(uint32_t hv) {
-    pthread_mutex_lock(&item_locks_[hv & hashmask(power)]);
+    pthread_mutex_lock(&item_locks_[hv & hashmask(lg_power)]);
 }
 
 void *ItemMaintainer::TryLock(uint32_t hv) {
-    pthread_mutex_t *lock = &item_locks_[hv & hashmask(power)];
+    pthread_mutex_t *lock = &item_locks_[hv & hashmask(lg_power)];
     if (pthread_mutex_trylock(lock) == 0) {
         return lock;
     }

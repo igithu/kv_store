@@ -16,31 +16,58 @@
 
 #include "util.h"
 
+#include <pthread.h>
+#ifdef __sun
+#include <atomic.h>
+#endif
+
 static pthread_mutex_t cas_id_lock = PTHREAD_MUTEX_INITIALIZER;
 
-void Lock(uint32_t hv) {
-    pthread_mutex_lock()
-}
+#if !defined(HAVE_GCC_ATOMICS) && !defined(__sun)
+static pthread_mutex_t atomics_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
-void *TryLock(uint32_t hv) {
-}
-
-void TryLockUnlock(void *arg) {
-}
-
-void Unlock(uint32_t hv) {
-}
+/*
+ * Lock for global stats
+ */
+static pthread_mutex_t stats_lock = PTHREAD_MUTEX_INITIALIZER;
 
 unsigned short RefcountIncr(unsigned short *refcount) {
+#ifdef HAVE_GCC_ATOMICS
+    return __sync_add_and_fetch(refcount, 1);
+#elif defined(__sun)
+    return atomic_inc_ushort_nv(refcount);
+#else
+    unsigned short res;
+    pthread_mutex_lock(&atomics_mutex);
+    (*refcount)++;
+    res = *refcount;
+    pthread_mutex_unlock(&atomics_mutex);
+    return res;
+#endif
 }
 
 unsigned short RefcountDecr(unsigned short *refcount) {
+#ifdef HAVE_GCC_ATOMICS
+    return __sync_sub_and_fetch(refcount, 1);
+#elif defined(__sun)
+    return atomic_dec_ushort_nv(refcount);
+#else
+    unsigned short res;
+    pthread_mutex_lock(&atomics_mutex);
+    (*refcount)--;
+    res = *refcount;
+    pthread_mutex_unlock(&atomics_mutex);
+    return res;
+#endif
 }
 
 void StatsLock() {
+    pthread_mutex_lock(&stats_lock);
 }
 
 void StatsUnlock() {
+    pthread_mutex_unlock(&stats_lock);
 }
 
 uint64_t GetCasId() {

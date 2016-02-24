@@ -16,15 +16,17 @@
 
 #include "item_lru_crawler.h"
 
+#include "item_maintainer.h"
 #include "lru_maintainer.h"
 #include "global.h"
 #include "util.h"
+
+static ItemMaintainer& im_instance = ItemMaintainer::GetInstance();
 
 ItemLRUCrawler::ItemLRUCrawler() :
     lru_crawler_initialized_(false),
     lru_crawler_runnng_(false),
     crawler_count_(0),
-    im_instance_(ItemMaintainer::GetInstance()),
     lru_crawler_lock_(PTHREAD_MUTEX_INITIALIZER),
     lru_crawler_cond_(PTHREAD_COND_INITIALIZER),
     lru_crawler_stats_lock_(PTHREAD_MUTEX_INITIALIZER) {
@@ -49,9 +51,10 @@ ItemLRUCrawler& ItemLRUCrawler::GetInstance() {
 void ItemLRUCrawler::Run() {
     int crawls_persleep = g_settings.crawls_persleep;
 
-    pthread_mutex_lock(&lru_crawler_lock_);
-    if (g_settings.verbose > 2)
+    if (g_settings.verbose > 2) {
         fprintf(stderr, "Starting LRU crawler background thread\n");
+    }
+    pthread_mutex_lock(&lru_crawler_lock_);
     while (lru_crawler_runnng_) {
         pthread_cond_wait(&lru_crawler_cond_, &lru_crawler_lock_);
         while (crawler_count_) {
@@ -61,17 +64,17 @@ void ItemLRUCrawler::Run() {
                 if (crawlers_[i].it_flags != 1) {
                     continue;
                 }
-                im_instance_.CacheLock(i);
-                search = im_instance_.DoItemLinkQ((Item *)&crawlers_[i], true);
+                im_instance.CacheLock(i);
+                search = im_instance.DoItemLinkQ((Item *)&crawlers_[i], true);
                 if (search == NULL || (crawlers_[i].remaining && --crawlers[i].remaining < 1)) {
                     if (g_settings.verbose > 2)
                         fprintf(stderr, "Nothing left to crawl for %d\n", i);
                     crawlers_[i].it_flags = 0;
                     crawler_count--;
-                    im_instance_.ItemUnlinkQ((Item *)&crawlers_[i]);
-                    im_instance_.CacheLock(i)
+                    im_instance.ItemUnlinkQ((Item *)&crawlers_[i]);
+                    im_instance.CacheLock(i)
                     pthread_mutex_lock(&lru_crawler_stats_lock_);
-                    crawler_stats_[CLEAR_LRU(i)].end_time = im_instance_.GetCurrentTime();
+                    crawler_stats_[CLEAR_LRU(i)].end_time = im_instance.GetCurrentTime();
                     crawler_stats_[CLEAR_LRU(i)].run_complete = true;
                     pthread_mutex_unlock(&lru_crawler_stats_lock_);
                     continue;
@@ -81,16 +84,16 @@ void ItemLRUCrawler::Run() {
                  * other callers can incr the refcount
                  */
                 if ((hold_lock = Trylock(hv)) == NULL) {
-                    im_instance_.CacheUnlock(i);
+                    im_instance.CacheUnlock(i);
                     continue;
                 }
                 /* Now see if the item is refcount locked */
                 if (RefcountIncr(&search->refcount) != 2) {
                     RefcountDecr(&search->refcount);
                     if (hold_lock) {
-                        TryLockUnlock(hold_lock);
+                        im_instance.TryLockUnlock(hold_lock);
                     }
-                    im_instance_.CacheUnlock(i);
+                    im_instance.CacheUnlock(i);
                     continue;
                 }
 
@@ -102,7 +105,7 @@ void ItemLRUCrawler::Run() {
                 pthread_mutex_unlock(&lru_crawler_stats_lock_);
 
                 if (hold_lock) {
-                    TryLockUnlock(hold_lock);
+                    im_instance.TryLockUnlock(hold_lock);
                 }
                 pthread_mutex_unlock(&lru_locks[i]);
 
@@ -211,8 +214,8 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
 
     for (int i = 0; i < 3; ++i) {
         uint32_t sid = tocrawl[i];
-        im_instance_.CacheLock(sid);
-        Item* item = im_instance_.GetItemTailByIndex(sid);
+        im_instance.CacheLock(sid);
+        Item* item = im_instance.GetItemTailByIndex(sid);
         if (NULL != item) {
             if (g_settings.verbose > 2) {
                 fprintf(stderr, "Kicking LRU crawler off for LRU %d\n", sid);
@@ -225,11 +228,11 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
             crawlers_[sid].time = 0;
             crawlers_[sid].remaining = remaining;
             crawlers_[sid].slabs_clsid = sid;
-            im_instance_.DoItemLinkQ((Item *)&crawlers_[sid], true);
+            im_instance.DoItemLinkQ((Item *)&crawlers_[sid], true);
             ++crawler_count_;
             ++starts;
         }
-        im_instance_.CacheUnlock(sid);
+        im_instance.CacheUnlock(sid);
     }
     if (starts) {
         STATS_LOCK();
@@ -238,7 +241,7 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
         STATS_UNLOCK();
         pthread_mutex_lock(&lru_crawler_stats_lock_);
         memset(&crawler_stats_[id], 0, sizeof(CrawlerStats));
-        crawler_stats_[id].start_time = im_instance_.GetCurrentTime();
+        crawler_stats_[id].start_time = im_instance.GetCurrentTime();
         pthread_mutex_unlock(&lru_crawler_stats_lock_);
     }
     return starts;
@@ -250,12 +253,12 @@ Item *ItemLRUCrawler::CrawlQ(Item *it) {
 void ItemLRUCrawler::ItemCrawlerEvaluate(Item *search, uint32_t hv, int i) {
     int slab_id = CLEAR_LRU(i);
     CrawlerStats *s = &crawler_stats_[slab_id];
-    if (im_instance_.ItemEvaluate(search, hv, i)) {
+    if (im_instance.ItemEvaluate(search, hv, i)) {
         s->reclaimed++;
     } else {
         s->seen++;
         RefcountIncr(&search->refcount);
-        rel_time_t interval_time = search->exptime - im_instance_.GetCurrentTime();
+        rel_time_t interval_time = search->exptime - im_instance.GetCurrentTime();
         if (search->exptime == 0) {
             s->noexp++;
         } else if (interval_time > 3599) {

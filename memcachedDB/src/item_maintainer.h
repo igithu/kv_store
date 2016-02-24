@@ -312,12 +312,12 @@ class ItemMaintainer : public Thread {
         DISALLOW_COPY_AND_ASSIGN(ItemMaintainer);
 
     private:
-        Item **heads_[LARGEST_ID];
-        Item **tails_[LARGEST_ID];
+        Item **heads_;
+        Item **tails_;
 
-        unsigned int item_sizes_[LARGEST_ID];
-        ItemStats item_stats_[LARGEST_ID];
-        pthread_mutex_t cache_locks_[POWER_LARGEST]
+        unsigned int *item_sizes_;
+        ItemStats *item_stats_;
+        pthread_mutex_t *cache_locks_;
 
         rel_time_t current_time_;
         static struct ev_loop *time_loop_;

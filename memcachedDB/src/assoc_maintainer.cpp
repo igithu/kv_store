@@ -40,6 +40,13 @@ AssocMaintainer::AssocMaintainer() :
 }
 
 AssocMaintainer::~AssocMaintainer() {
+    if (NULL != primary_hashtable_) {
+        for (int i = 0; i < hashpower_; ++i) {
+            free(primary_hashtable_[i]);
+        }
+        free(primary_hashtable_);
+        primary_hashtable_ = NULL;
+    }
 }
 
 void AssocMaintainer::InitAssoc(const int hashpower_init) {
@@ -168,6 +175,7 @@ void AssocMaintainer::Run() {
                 if (expand_bucket_ == hashsize(hashpower_ - 1)) {
                     expanding_ = false;
                     free(old_hashtable_);
+                    old_hashtable_ = NULL;
                     StatsLock();
                     g_stats.hash_bytes -= hashsize(hashpower_ - 1) * sizeof(void *);
                     g_stats.hash_is_expanding = 0;
@@ -180,7 +188,7 @@ void AssocMaintainer::Run() {
             }
 
             if (item_lock) {
-                TryLockUnlock(item_lock);
+                im_instance.TryLockUnlock(item_lock);
                 item_lock = NULL;
             }
         }

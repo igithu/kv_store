@@ -20,7 +20,6 @@
 #ifndef __ITEM_LRU_CRAWLER_H
 #define __ITEM_LRU_CRAWLER_H
 
-#include "item_maintainer.h"
 
 #define CRAWL_LARGEST_ID 256
 
@@ -97,8 +96,6 @@ class ItemLRUCrawler : public Thread {
         bool lru_crawler_initialized_;
         bool lru_crawler_runnng_;
         int32_t crawler_count_;
-
-        ItemMaintainer& im_instance_;
 
         Crawler *crawlers_;
         CrawlerStats *crawler_stats_;
