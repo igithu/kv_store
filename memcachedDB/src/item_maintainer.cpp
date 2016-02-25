@@ -294,13 +294,216 @@ int  ItemMaintainer::DoItemReplace(Item *it, Item *new_it, const uint32_t hv) {
 
 }
 
-enum StoreItemType ItemMaintainer::DoStoreItem(const uint32_t hv, Item* it, int32_t op) {
+enum StoreItemType ItemMaintainer::DoStoreItem(const uint32_t hv, Item* it, NreadOpType op) {
+    char *key = ITEM_key(it);
+    Item *old_it = DoItemGet(key, it->nkey, hv);
+    enum StoreItemType store_status = NOT_STORED;
+
+    Item *new_it = NULL;
+
+    if (NULL != old_it && NREAD_ADD == op) {
+        /*
+         * add only adds a nonexistent item, but promote to head of LRU
+         */
+        DoItemUpdate(old_it);
+    } else if (NULL == old_it && (NREAD_REPLACE == op ||
+                                  NREAD_APPEND == op ||
+                                  NREAD_PREPEND == op)) {
+        /*
+         * replace only replaces an existing value; don't store
+         */
+    } else if (NREAD_CAS == op) {
+        /*
+         * validate cas operation
+         */
+        if (NULL == old_it) {
+            // LRU expired
+            store_status = NOT_FOUND;
+            /*
+            pthread_mutex_lock(&c->thread->stats.mutex);
+            c->thread->stats.cas_misses++;
+            pthread_mutex_unlock(&c->thread->stats.mutex);
+            */
+        } else if (ITEM_get_cas(it) == ITEM_get_cas(old_it)) {
+            /*
+             * cas validates
+             * it and old_it may belong to different classes.
+             * I'm updating the stats for the one that's getting pushed out
+             */
+            /*
+            pthread_mutex_lock(&c->thread->stats.mutex);
+            c->thread->stats.slab_stats[ITEM_clsid(old_it)].cas_hits++;
+            pthread_mutex_unlock(&c->thread->stats.mutex);
+            */
+
+            ItemReplace(old_it, it, hv);
+            store_status = STORED;
+        } else {
+            /*
+            pthread_mutex_lock(&c->thread->stats.mutex);
+            c->thread->stats.slab_stats[ITEM_clsid(old_it)].cas_badval++;
+            pthread_mutex_unlock(&c->thread->stats.mutex);
+            */
+
+            if(g_settings.verbose > 1) {
+                fprintf(stderr, "CAS:  failure: expected %llu, got %llu\n",
+                        (unsigned long long)ITEM_get_cas(old_it),
+                        (unsigned long long)ITEM_get_cas(it));
+            }
+            store_status = EXISTS;
+        }
+    } else {
+        /*
+         * Append - combine new and old record into single one. Here it's
+         * atomic and thread-safe.
+         */
+        if (NREAD_APPEND == op || NREAD_PREPEND == op) {
+            /*
+             * Validate CAS
+             */
+            if (ITEM_get_cas(it) != 0) {
+                /*
+                 * CAS much be equal
+                 */
+                if (ITEM_get_cas(it) != ITEM_get_cas(old_it)) {
+                    store_status = EXISTS;
+                }
+            }
+
+            if (NOT_STORED == store_status) {
+                /*
+                 * we have it and old_it here - alloc memory to hold both 
+                 * flags was already lost - so recover them from ITEM_suffix(it)
+                 */
+
+                int flags = (int) strtol(ITEM_suffix(old_it), (char **) NULL, 10);
+                new_it = DoItemAlloc(key, it->nkey, flags, old_it->exptime, it->nbytes + old_it->nbytes - 2 /* CRLF */, hv);
+
+                if (NULL == new_it) {
+                    /*
+                     * SERVER_ERROR out of memory
+                     */
+                    if (NULL != old_it) {
+                        DoItemRemove(old_it);
+                    }
+                    return NOT_STORED;
+                }
+
+                /*
+                 * copy data from it and old_it to new_it
+                 */
+
+                if (NREAD_APPEND == op) {
+                    memcpy(ITEM_data(new_it), ITEM_data(old_it), old_it->nbytes);
+                    memcpy(ITEM_data(new_it) + old_it->nbytes - 2 /* CRLF */, ITEM_data(it), it->nbytes);
+                } else {
+                    /*
+                     * NREAD_PREPEND
+                     */
+                    memcpy(ITEM_data(new_it), ITEM_data(it), it->nbytes);
+                    memcpy(ITEM_data(new_it) + it->nbytes - 2 /* CRLF */, ITEM_data(old_it), old_it->nbytes);
+                }
+                it = new_it;
+            }
+        }
+
+        if (NOT_STORED == store_status) {
+            if (NULL != old_it) {
+                ItemReplace(old_it, it, hv);
+            } else {
+                DoItemLink(it, hv);
+            }
+            // c->cas = ITEM_get_cas(it);
+            store_status = STORED;
+        }
+    }
+
+    if (NULL != old_it) {
+        DoItemRemove(old_it);         /* release our reference */
+    }
+    if (NULL != new_it) {
+        DoItemRemove(new_it);
+    }
+/*
+    if (stored == STORED) {
+        c->cas = ITEM_get_cas(it);
+    }
+*/
+    return store_status;
 }
 
 Item *ItemMaintainer::DoItemGet(const char *key, const size_t nkey, const uint32_t hv) {
+    Item *it = am_instance.AssocFind(key, nkey, hv);
+    if (NULL != it) {
+        RefcountIncr(&it->refcount);
+        /* Optimization for slab reassignment. prevents popular items from
+         * jamming in busy wait. Can only do this here to satisfy lock order
+         * of item_lock, slabs_lock. */
+        /* This was made unsafe by removal of the cache_lock:
+         * slab_rebalance_signal and slab_rebal.* are modified in a separate
+         * thread under slabs_lock. If slab_rebalance_signal = 1, slab_start =
+         * NULL (0), but slab_end is still equal to some value, this would end
+         * up unlinking every item fetched.
+         * This is either an acceptable loss, or if slab_rebalance_signal is
+         * true, slab_start/slab_end should be put behind the slabs_lock.
+         * Which would cause a huge potential slowdown.
+         * Could also use a specific lock for slab_rebal.* and
+         * slab_rebalance_signal (shorter lock?)
+         */
+        /*if (slab_rebalance_signal &&
+            ((void *)it >= slab_rebal.slab_start && (void *)it < slab_rebal.slab_end)) {
+            do_item_unlink(it, hv);
+            do_item_remove(it);
+            it = NULL;
+        }*/
+    }
+    int was_found = 0;
+
+    if (g_settings.verbose > 2) {
+        if (NULL == it) {
+            fprintf(stderr, "> NOT FOUND ");
+        } else {
+            fprintf(stderr, "> FOUND KEY ");
+            ++was_found;
+        }
+        for (int32_t i = 0; i < nkey; ++i) {
+            fprintf(stderr, "%c", key[i]);
+        }
+    }
+
+    if (NULL != it) {
+        if (IsFlushed(it)) {
+            DoItemUnlink(it, hv);
+            DoItemRemove(it);
+            it = NULL;
+            if (was_found) {
+                fprintf(stderr, " -nuked by flush");
+            }
+        } else if (it->exptime != 0 && it->exptime <= current_time_) {
+            DoItemUnlink(it, hv);
+            DoItemRemove(it);
+            it = NULL;
+            if (was_found) {
+                fprintf(stderr, " -nuked by expire");
+            }
+        } else {
+            it->it_flags |= ITEM_FETCHED | ITEM_ACTIVE;
+        }
+    }
+
+    if (g_settings.verbose > 2) {
+        fprintf(stderr, "\n");
+    }
+
+    return it;
 }
 
 Item *ItemMaintainer::DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv) {
+    Item *it = DoItemGet(key, nkey, hv);
+    if (NULL != it) {
+        it->exptime = exptime;
+    }
+    return it;
 }
 
 void ItemMaintainer::ItemLinkQ(Item* it) {
@@ -491,7 +694,7 @@ void ItemMaintainer::ItemUnlink(Item *it) {
 void ItemMaintainer::ItemUpdate(Item *it) {
 }
 
-enum StoreItemType ItemMaintainer::StoreItem(Item *item, int op) {
+enum StoreItemType ItemMaintainer::StoreItem(Item *item, NreadOpType op) {
 }
 
 rel_time_t ItemMaintainer::GetCurrentTime() {

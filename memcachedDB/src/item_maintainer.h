@@ -147,9 +147,12 @@ enum DeltaResultType {
 };
 
 enum StoreItemType {
-    NOT_STORED=0, STORED, EXISTS, NOT_FOUND
+    NOT_STORED = 0, STORED, EXISTS, NOT_FOUND
 };
 
+enum NreadOpType {
+    NREAD_ADD = 1, NREAD_SET, NREAD_REPLACE, NREAD_APPEND, NREAD_PREPEND, NREAD_CAS
+};
 
 /*
  * Structure for storing items within memcached.
@@ -238,7 +241,7 @@ class ItemMaintainer : public Thread {
         void DoItemUpdateNolock(Item *it);
         int  DoItemReplace(Item *it, Item *new_it, const uint32_t hv);
 
-        enum StoreItemType DoStoreItem(const uint32_t hv, Item* it, int32_t op);
+        enum StoreItemType DoStoreItem(const uint32_t hv, Item* it, NreadOpType op);
         Item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
         Item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
         void DoItemLinkQ(Item* it, bool is_crawler = false);
@@ -284,7 +287,7 @@ class ItemMaintainer : public Thread {
         void  ItemUnlink(Item *it);
         void  ItemUpdate(Item *it);
 
-        enum StoreItemType StoreItem(Item *item, int op);
+        enum StoreItemType StoreItem(Item *item, NreadOpType op);
 
         rel_time_t GetCurrentTime();
 
