@@ -255,7 +255,7 @@ class ItemMaintainer : public Thread {
         /*
          * item_sizes_ interface
          */
-        Item *GetItemSizeByIndex(int32_t index);
+        int32_t GetItemSizeByIndex(int32_t index);
         void ItemSizeIncrement(int32_t index);
         void ItemSizeDecrement(int32_t index);
 
@@ -278,15 +278,40 @@ class ItemMaintainer : public Thread {
         ItemMaintainer();
 
         Item *ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
+        /*
+         * Returns an item if it hasn't been marked as expired,
+         * lazy-expiring as needed.
+         */
         Item *ItemGet(const char *key, const size_t nkey);
         Item *ItemTouch(const char *key, const size_t nkey, uint32_t exptime);
 
+        /*
+         * Links an item into the LRU and hashtable.
+         */
         int   ItemLink(Item *it);
+        /*
+         * Decrements the reference count on an item and adds it to the freelist if
+         * needed.
+         */
         void  ItemRemove(Item *it);
+        /*
+         * Replaces one item with another in the hashtable.
+         * Unprotected by a mutex lock since the core server does not require
+         * it to be thread-safe.
+         */
         int   ItemReplace(Item *it, Item *new_it, const uint32_t hv);
+        /*
+         * Unlinks an item from the LRU and hashtable.
+         */
         void  ItemUnlink(Item *it);
+        /*
+         * Moves an item to the back of the LRU queue.
+         */
         void  ItemUpdate(Item *it);
 
+        /*
+         * Stores an item in the cache (high level, obeys set/add/replace semantics)
+         */
         enum StoreItemType StoreItem(Item *item, NreadOpType op);
 
         rel_time_t GetCurrentTime();

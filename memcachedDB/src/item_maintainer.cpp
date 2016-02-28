@@ -530,13 +530,26 @@ void ItemMaintainer::ItemStatsTotals(ADD_STAT add_stats, void *c) {
 void ItemMaintainer::ItemStatsSizes(ADD_STAT add_stats, void *c) {
 }
 
-Item *ItemMaintainer::GetItemSizeByIndex(int32_t index) {
+int32_t ItemMaintainer::GetItemSizeByIndex(int32_t index) {
+    int32_t size = 0;
+    CacheLock(index);
+    size = item_sizes_[index];
+    CacheUnlock(index);
+    return size;
 }
 
 void ItemMaintainer::ItemSizeIncrement(int32_t index) {
+    if (index >= LARGEST_ID) {
+        return;
+    }
+    ++item_sizes_[index];
 }
 
 void ItemMaintainer::ItemSizeDecrement(int32_t index) {
+    if (index >= LARGEST_ID) {
+        return;
+    }
+    --item_sizes_[index];
 }
 
 Item *ItemMaintainer::GetItemHeadByIndex(int32_t index) {
@@ -674,27 +687,62 @@ Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t ex
 }
 
 Item *ItemMaintainer::ItemGet(const char *key, const size_t nkey) {
+    uint32_t hv = Hash(key, nkey);
+    Lock(hv);
+    Item* it = DoItemGet(key, nkey, hv);
+    Unlock(hv);
+    return it;
 }
 
 Item *ItemMaintainer::ItemTouch(const char *key, const size_t nkey, uint32_t exptime) {
+    uint32_t hv = Hash(key, nkey);
+    Lock(hv);
+    Item* it = DoItemTouch(key, nkey, exptime, hv);
+    Unlock(hv);
+    return it;
+
 }
 
 int32_t ItemMaintainer::ItemLink(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    int32_t ret = DoItemLink(it, hv);
+    Unlock(hv);
+    return ret;
 }
 
 void ItemMaintainer::ItemRemove(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    int32_t ret = DoItemRemove(it);
+    Unlock(hv);
+    return ret;
 }
 
 int ItemMaintainer::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
+    return DoItemReplace(it, new_it, hv);
 }
 
 void ItemMaintainer::ItemUnlink(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    DoItemUnlink(item, hv);
+    Unlock(hv);
 }
 
 void ItemMaintainer::ItemUpdate(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    DoItemUpdate(item);
+    Unlock(hv);
 }
 
 enum StoreItemType ItemMaintainer::StoreItem(Item *item, NreadOpType op) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    enum StoreItemType ret = DoStoreItem(hv, it, op);
+    Unlock(hv);
+    return ret;
 }
 
 rel_time_t ItemMaintainer::GetCurrentTime() {
