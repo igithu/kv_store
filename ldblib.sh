@@ -3,8 +3,9 @@
 # make the levelDB lib and copy the include and libs in the current file
 
 BUILD_ROOT=$PWD
-LDB_LIB=$BUILD_ROOT/lib
-LDB_INCLUDE=$BUILD_ROOT/include
+LIB_LDB=$BUILD_ROOT/libldb
+LDB_LIB=$LIB_LDB/lib
+LDB_INCLUDE=$LIB_LDB/include
 
 SOURCE_DY_LIB=$BUILD_ROOT/leveldb/out-shared/libleveldb.*
 SOURCE_STATIC_LIB=$BUILD_ROOT/leveldb/out-static/*.a
@@ -22,24 +23,21 @@ fi
 
 cd ..
 
-# clean old libs
-if [ -d $LDB_LIB ]
+# clean old files
+if [ -d $LIB_LDB ]
 then
-    rm -rf $LDB_LIB
+    rm -rf $LIB_LDB
 fi
-if [ -d $LDB_INCLUDE ]
-then
-    rm -rf $LDB_INCLUDE
-fi
+mkdir -p $LIB_LDB
 
 echo "copy the leveldb lib and include file"
 
-cp -rf leveldb/include $BUILD_ROOT/
+cp -rf leveldb/include $LIB_LDB
 
-mkdir -p lib/shared
-cp $SOURCE_DY_LIB lib/shared
+mkdir -p $LIB_LDB/shared
+cp $SOURCE_DY_LIB $LIB_LDB/shared
 
-mkdir -p lib/static
-cp $SOURCE_STATIC_LIB lib/static
+mkdir -p $LIB_LDB/static
+cp $SOURCE_STATIC_LIB $LIB_LDB/static
 
 cd leveldb && make clean && cd ..
