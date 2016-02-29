@@ -40,14 +40,13 @@ class KVStore {
         KVStore() {
         }
 
-        ~KVStore() {
+        virtual ~KVStore() {
         }
-
-        bool Start();
 
         virtual bool Put(const char* key, const char* value) = 0;
         virtual bool Get(const char* key, std::string& value) = 0;
         virtual bool Delete(const char* key) = 0;
+
 };
 
 

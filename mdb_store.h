@@ -7,9 +7,9 @@
 
 
 /**
- * @file kv_server.h
+ * @file mdb_store.h
  * @author aishuyu(asy5178@163.com)
- * @date 2016/02/28 22:29:57
+ * @date 2016/02/29 23:35:36
  * @brief
  *
  **/
@@ -17,28 +17,38 @@
 
 
 
-#ifndef __KV_SERVER_H
-#define __KV_SERVER_H
+#ifndef __MDB_STORE_H
+#define __MDB_STORE_H
+
+
+#include <leveldb/db.h>
 
 #include "kv_store.h"
 
 namespace kv_store {
 
-class KVServer {
+class MdbStore : public KVStore {
     public:
-        KVServer();
-        ~KVServer();
+        MdbStore();
+        ~MdbStore();
 
-        bool InitKVStore();
+        virtual bool Put(const char* key, const char* value);
+        virtual bool Get(const char* key, std::string& value);
+        virtual bool Delete(const char* key);
 
     private:
-        KVStore* kv_store_ptr_;
+        bool InitMdbStore();
+
 };
 
 }  // end of namespace kv_store
 
 
-#endif // __KV_SERVER_H
+
+
+
+
+#endif // __MDB_STORE_H
 
 
 

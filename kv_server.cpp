@@ -7,9 +7,9 @@
 
 
 /**
- * @file kv_server.h
+ * @file kv_server.cpp
  * @author aishuyu(asy5178@163.com)
- * @date 2016/02/28 22:29:57
+ * @date 2016/02/29 22:04:22
  * @brief
  *
  **/
@@ -17,28 +17,33 @@
 
 
 
-#ifndef __KV_SERVER_H
-#define __KV_SERVER_H
+#include "kv_server.h"
 
-#include "kv_store.h"
 
 namespace kv_store {
 
-class KVServer {
-    public:
-        KVServer();
-        ~KVServer();
+KVServer::KVServer() {
+}
 
-        bool InitKVStore();
+KVServer::~KVServer() {
+}
 
-    private:
-        KVStore* kv_store_ptr_;
-};
+bool KVServer::InitKVStore() {
+    return true;
+}
+
+
+
+
 
 }  // end of namespace kv_store
 
 
-#endif // __KV_SERVER_H
+
+
+
+
+
 
 
 

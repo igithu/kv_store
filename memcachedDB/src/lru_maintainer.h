@@ -47,7 +47,13 @@ class LRUMaintainer : public Thread {
 
 
     private:
+        bool lru_maintainer_initialized_;
+        bool lru_maintainer_running_;
+        bool lru_clsid_checked_;
+
         pthread_mutex_t lru_maintainer_lock_;
+
+
 
 };
 
