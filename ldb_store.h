@@ -20,6 +20,8 @@
 #ifndef __LDB_STORE_H
 #define __LDB_STORE_H
 
+#include <string>
+
 #include <leveldb/db.h>
 
 #include "kv_store.h"
@@ -37,6 +39,7 @@ class LdbStore : public KVStore {
 
     private:
         bool InitLdbStore();
+        bool CreateDir(const char* path);
 
     private:
         leveldb::Options options_;
