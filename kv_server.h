@@ -31,6 +31,10 @@ class KVServer {
 
         bool InitKVStore();
 
+        bool Put(const char* key, const char* value);
+        bool Get(const char* key, std::string& value);
+        bool Delete(const char* key);
+
     private:
         KVStore* kv_store_ptr_;
 };

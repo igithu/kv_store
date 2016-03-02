@@ -47,6 +47,8 @@ class KVStore {
         virtual bool Get(const char* key, std::string& value) = 0;
         virtual bool Delete(const char* key) = 0;
 
+        // virtual bool StartUp() = 0;
+
 };
 
 

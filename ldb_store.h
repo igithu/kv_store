@@ -37,6 +37,7 @@ class LdbStore : public KVStore {
         virtual bool Get(const char* key, std::string& value);
         virtual bool Delete(const char* key);
 
+
     private:
         bool InitLdbStore();
         bool CreateDir(const char* path);

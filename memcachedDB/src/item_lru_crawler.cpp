@@ -235,10 +235,10 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
         im_instance.CacheUnlock(sid);
     }
     if (starts) {
-        STATS_LOCK();
+        StatsLock();
         g_stats.lru_crawler_running = true;
         g_stats.lru_crawler_starts++;
-        STATS_UNLOCK();
+        StatsUnlock();
         pthread_mutex_lock(&lru_crawler_stats_lock_);
         memset(&crawler_stats_[id], 0, sizeof(CrawlerStats));
         crawler_stats_[id].start_time = im_instance.GetCurrentTime();
