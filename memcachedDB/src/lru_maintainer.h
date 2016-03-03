@@ -35,7 +35,7 @@ class LRUMaintainer : public Thread {
 
         virtual void Run();
 
-        int InitLRUMaintainer();
+        int32_t InitLRUMaintainer();
         void StopLRUMaintainer();
         void PauseLRU();
         void ResumeLRU();
@@ -43,13 +43,15 @@ class LRUMaintainer : public Thread {
     private:
         LRUMaintainer();
 
+        int32_t LRUMaintainerJuggle(const int32_t slabs_clsid);
+
         DISALLOW_COPY_AND_ASSIGN(LRUMaintainer);
 
 
     private:
         bool lru_maintainer_initialized_;
         bool lru_maintainer_running_;
-        bool lru_clsid_checked_;
+        bool lru_clsid_;
 
         pthread_mutex_t lru_maintainer_lock_;
 
