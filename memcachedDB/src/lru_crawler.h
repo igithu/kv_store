@@ -7,7 +7,7 @@
 
 
 /**
- * @file item_lru_crawler.h
+ * @file lru_crawler.h
  * @author aishuyu(asy5178@163.com)
  * @date 2016/02/09 23:23:47
  * @brief
@@ -53,19 +53,19 @@ enum CrawlerResultType {
     CRAWLER_OK = 0, CRAWLER_RUNNING, CRAWLER_BADCLASS, CRAWLER_NOTSTARTED
 };
 
-class ItemLRUCrawler : public Thread {
+class LRUCrawler : public Thread {
     public:
-        ~ItemLRUCrawler();
+        ~LRUCrawler();
 
-        static ItemLRUCrawler& GetInstance();
+        static LRUCrawler& GetInstance();
 
         virtual void Run();
 
         bool InitLRUCrawler();
         /*
-         * stop the ItemLRUCrawler thread
+         * stop the LRUCrawler thread
          */
-        void StopItemLRUCrawler();
+        void StopLRUCrawler();
         enum CrawlerResultType LRUCrawl(char *slabs);
         /*
          * If we hold this lock, crawler can't wake up or move
@@ -74,7 +74,7 @@ class ItemLRUCrawler : public Thread {
         void ResumeCrawler();
 
     private:
-        ItemLRUCrawler();
+        LRUCrawler();
 
         int DoLRUCrawlerStart(uint32_t id, uint32_t remaining);
 
@@ -90,7 +90,7 @@ class ItemLRUCrawler : public Thread {
          */
         void ItemCrawlerEvaluate(Item *search, uint32_t hv, int i);
 
-        DISALLOW_COPY_AND_ASSIGN(ItemLRUCrawler);
+        DISALLOW_COPY_AND_ASSIGN(LRUCrawler);
 
     private:
         bool lru_crawler_initialized_;

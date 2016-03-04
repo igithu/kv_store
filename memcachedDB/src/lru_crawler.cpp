@@ -7,23 +7,23 @@
 
 
 /**
- * @file item_lru_crawler.cpp
+ * @file lru_crawler.cpp
  * @author aishuyu(asy5178@163.com)
  * @date 2016/02/11 22:32:19
  * @brief
  *
  **/
 
-#include "item_lru_crawler.h"
+#include "lru_crawler.h"
 
-#include "item_maintainer.h"
+#include "item_manager.h"
 #include "lru_maintainer.h"
 #include "global.h"
 #include "util.h"
 
-static ItemMaintainer& im_instance = ItemMaintainer::GetInstance();
+static ItemManager& im_instance = ItemMaintainer::GetInstance();
 
-ItemLRUCrawler::ItemLRUCrawler() :
+LRUCrawler::LRUCrawler() :
     lru_crawler_initialized_(false),
     lru_crawler_runnng_(false),
     crawler_count_(0),
@@ -34,7 +34,7 @@ ItemLRUCrawler::ItemLRUCrawler() :
         crawler_stats_ = calloc(MAX_NUMBER_OF_SLAB_CLASSES, sizeof(CrawlerStats));
 }
 
-ItemLRUCrawler::~ItemLRUCrawler() {
+LRUCrawler::~LRUCrawler() {
     if (NULL != crawlers_) {
         free(crawlers_);
     }
@@ -43,12 +43,12 @@ ItemLRUCrawler::~ItemLRUCrawler() {
     }
 }
 
-ItemLRUCrawler& ItemLRUCrawler::GetInstance() {
-    static ItemLRUCrawler irc_instance;
+LRUCrawler& LRUCrawler::GetInstance() {
+    static LRUCrawler irc_instance;
     return irc_instance;
 }
 
-void ItemLRUCrawler::Run() {
+void LRUCrawler::Run() {
     int crawls_persleep = g_settings.crawls_persleep;
 
     if (g_settings.verbose > 2) {
@@ -83,7 +83,7 @@ void ItemLRUCrawler::Run() {
                 /* Attempt to hash item lock the "search" item. If locked, no
                  * other callers can incr the refcount
                  */
-                if ((hold_lock = Trylock(hv)) == NULL) {
+                if ((hold_lock = im_instance.Trylock(hv)) == NULL) {
                     im_instance.CacheUnlock(i);
                     continue;
                 }
@@ -144,7 +144,7 @@ bool InitLRUCrawler::InitLRUCrawler() {
     return true;
 }
 
-void ItemLRUCrawler::StopItemLRUCrawler() {
+void LRUCrawler::StopLRUCrawler() {
     pthread_mutex_lock(&lru_crawler_lock_);
     lru_crawler_runnng_ = false;
     pthread_cond_signal(&lru_crawler_cond_);
@@ -154,7 +154,7 @@ void ItemLRUCrawler::StopItemLRUCrawler() {
     g_settings.lru_crawler = false;
 }
 
-enum CrawlerResultType ItemLRUCrawler::LRUCrawl(char *slabs) {
+enum CrawlerResultType LRUCrawler::LRUCrawl(char *slabs) {
     if (pthread_mutex_trylock(&lru_crawler_lock_) != 0) {
         return CRAWLER_RUNNING;
     }
@@ -196,15 +196,15 @@ enum CrawlerResultType ItemLRUCrawler::LRUCrawl(char *slabs) {
     return CRAWLER_NOTSTARTED;
 }
 
-void ItemLRUCrawler::PauseCrawler() {
+void LRUCrawler::PauseCrawler() {
     pthread_mutex_lock(&lru_maintainer_lock_);
 }
 
-void ItemLRUCrawler::ResumeCrawler() {
+void LRUCrawler::ResumeCrawler() {
     pthread_mutex_unlock(&lru_maintainer_lock_);
 }
 
-int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
+int LRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
     int starts = 0;
 
     uint32_t tocrawl[3];
@@ -247,10 +247,10 @@ int ItemLRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
     return starts;
 }
 
-Item *ItemLRUCrawler::CrawlQ(Item *it) {
+Item *LRUCrawler::CrawlQ(Item *it) {
 }
 
-void ItemLRUCrawler::ItemCrawlerEvaluate(Item *search, uint32_t hv, int i) {
+void LRUCrawler::ItemCrawlerEvaluate(Item *search, uint32_t hv, int i) {
     int slab_id = CLEAR_LRU(i);
     CrawlerStats *s = &crawler_stats_[slab_id];
     if (im_instance.ItemEvaluate(search, hv, i)) {

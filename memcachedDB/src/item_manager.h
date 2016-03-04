@@ -7,7 +7,7 @@
 
 
 /**
- * @file item_maintainer.h
+ * @file item_manager.h
  * @author aishuyu(asy5178@163.com)
  * @date 2016/02/09 23:29:38
  * @brief
@@ -18,6 +18,8 @@
 
 #ifndef __ITEM_MAINTAINER_H
 #define __ITEM_MAINTAINER_H
+
+#include <atomic.h>
 
 #include<ev.h>
 
@@ -134,7 +136,7 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
 /*
  * Time relative to server start. Smaller than time_t on 64-bit systems.
  */
-typedef unsigned int rel_time_t;
+typedef unsigned std::atomic<int> rel_time_t;
 
 enum Protocol {
     ascii_prot = 3, /* arbitrary value. */
@@ -209,11 +211,15 @@ struct ItemStats {
 };
 
 
-class ItemMaintainer : public Thread {
+class ItemManager {
     public:
-        ~ItemMaintainer();
+        ~ItemManager();
 
-        static ItemMaintainer& GetInstance();
+        static ItemManager& GetInstance();
+
+        bool Start();
+        // bool SwitchLRUCrawler(bool status);
+        // bool SwitchLRUMaintainer(bool status);
 
         Item *DoItemAlloc(
                 char *key,
@@ -275,7 +281,7 @@ class ItemMaintainer : public Thread {
         void Unlock(uint32_t hv);
 
     private:
-        ItemMaintainer();
+        ItemManager();
 
         Item *ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
         /*
@@ -337,7 +343,7 @@ class ItemMaintainer : public Thread {
 
         static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
 
-        DISALLOW_COPY_AND_ASSIGN(ItemMaintainer);
+        DISALLOW_COPY_AND_ASSIGN(ItemManager);
 
     private:
         Item **heads_;
@@ -352,6 +358,9 @@ class ItemMaintainer : public Thread {
         static ev_timer timer_w_;
 
         pthread_mutex_t *item_locks_;
+
+        bool start_lru_crawler_;
+        bool start_lru_maintainer_;
 };
 
 

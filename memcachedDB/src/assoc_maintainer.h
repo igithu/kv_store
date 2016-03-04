@@ -20,7 +20,8 @@
 #ifndef __ASSOC_MAINTAINER_H
 #define __ASSOC_MAINTAINER_H
 
-#include "item_maintainer.h"
+
+#include "item_manager.h"
 
 
 /* Initial power multiplier for the hash table */

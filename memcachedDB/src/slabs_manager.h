@@ -7,7 +7,7 @@
 
 
 /**
- * @file slabs.h
+ * @file slabs_manager.h
  * @author aishuyu(asy5178@163.com)
  * @date 2016/02/08 22:36:52
  * @brief
@@ -54,7 +54,7 @@ class SlabsManager {
 
         static SlabsManager& GetInstance();
 
-        virtual void Run();
+        bool Start();
 
         /*
          * Init the subsystem. 1st argument is the limit on no. of bytes to allocate,

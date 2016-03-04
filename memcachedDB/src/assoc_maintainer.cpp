@@ -16,14 +16,14 @@
 
 #include "assoc_maintainer.h"
 
-#include "item_lru_crawler.h"
+#include "lru_crawler.h"
 #include "lru_maintainer.h"
-#include "item_maintainer.h"
-#include "slabs.h"
+#include "item_manager.h"
+#include "slabs_manager.h"
 #include "global.h"
 #include "util.h"
 
-static ItemMaintainer& im_instance = ItemMaintainer::GetInstance();
+static ItemManager& im_instance = ItemManager::GetInstance();
 
 AssocMaintainer::AssocMaintainer() :
     primary_hashtable_(NULL),
@@ -162,7 +162,7 @@ void AssocMaintainer::Run() {
              * also the lowest M bits of hv, and N is greater than M.
              * So we can process expanding with only one item_lock. cool!
              */
-            if ((item_lock = TryLock(expand_bucket_))) {
+            if ((item_lock = im_instance.TryLock(expand_bucket_))) {
                 for (it = old_hashtable_[expand_bucket_]; NULL != it; it = next) {
                     next = it->h_next;
                     bucket = hash(ITEM_key(it), it->nkey) & hashmask(hashpower_);
@@ -247,12 +247,12 @@ void AssocMaintainer::PauseThreads(enum PauseThreadTypes type) {
         case PAUSE_ALL_THREADS:
             SlabsManager::GetInstance().PauseSlabsRebalancer();
             LRUMaintainer::GetInstance().PauseLRU();
-            ItemLRUCrawler::GetInstance().PauseCrawler();
+            LRUCrawler::GetInstance().PauseCrawler();
             break;
         case RESUME_ALL_THREADS:
             SlabsManager::GetInstance().ResumeSlabsRebalancer();
             LRUMaintainer::GetInstance().ResumeLRU();
-            ItemLRUCrawler::GetInstance().ResumeCrawler();
+            LRUCrawler::GetInstance().ResumeCrawler();
             break;
         default:
             fprintf(stderr, "Unknown lock type: %d\n", type);

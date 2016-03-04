@@ -16,14 +16,14 @@
 
 #include "lru_maintainer.h"
 
-#include "item_maintainer.h"
-#include "slabs.h"
+#include "item_manager.h"
+#include "slabs_manager.h"
 #include "util.h"
 
 #define MAX_LRU_MAINTAINER_SLEEP 1000000
 #define MIN_LRU_MAINTAINER_SLEEP 1000
 
-static ItemMaintainer& im_instance = ItemMaintainer::GetInstance();
+static ItemManager& im_instance = ItemManager::GetInstance();
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
 
 LRUMaintainer::LRUMaintainer() :

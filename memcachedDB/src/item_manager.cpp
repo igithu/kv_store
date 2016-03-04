@@ -7,7 +7,7 @@
 
 
 /**
- * @file item_maintainer.cpp
+ * @file item_manager.cpp
  * @author aishuyu(asy5178@163.com)
  * @date 2016/02/11 23:40:59
  * @brief
@@ -15,25 +15,29 @@
  **/
 
 
-#include "item_maintainer.h"
+#include "item_manager.h"
 
 #include "lru_maintainer.h"
 #include "assoc_maintainer.h"
-#include "slabs.h"
+#include "slabs_manager.h"
 #include "global.h"
 #include "util.h"
 
 
-static SlabsManager& sm_instance = SlabsManager::GetInstance();
 static AssocMaintainer& am_instance = AssocMaintainer::GetInstance();
+static SlabsManager& sm_instance = SlabsManager::GetInstance();
+
+
 /*
- *
+ * lg : local global
  */
 static int32_t lg_power = 13;
 
-static struct ev_loop *ItemMaintainer::time_loop_ = ev_default_loop(0);
+static struct ev_loop *ItemManager::time_loop_ = ev_default_loop(0);
 
-ItemMaintainer::ItemMaintainer() {
+ItemManager::ItemManager() :
+    start_lru_crawler_(false),
+    start_lru_maintainer_(false) {
     heads_ = calloc(LARGEST_ID, sizeof(Item*));
     tails_ = calloc(LARGEST_ID, sizeof(Item*));
 
@@ -54,7 +58,7 @@ ItemMaintainer::ItemMaintainer() {
     }
 }
 
-ItemMaintainer::~ItemMaintainer() {
+ItemManager::~ItemManager() {
     if (NULL != heads_) {
         for (int i = 0; i < LARGEST_ID; ++i) {
             if (NULL != heads_[i]) {
@@ -82,19 +86,27 @@ ItemMaintainer::~ItemMaintainer() {
     }
 }
 
-ItemMaintainer& ItemMaintainer::GetInstance() {
-    static ItemMaintainer im_instance;
+ItemManager& ItemManager::GetInstance() {
+    static ItemManager im_instance;
     return im_instance;
 }
 
-Item *ItemMaintainer::DoItemAlloc(
+bool ItemManager::Start() {
+    if (!am_instance.Start()) {
+        return false;
+    }
+    // ?
+    sm_instance.InitSlabs(g_settings.maxbytes, g_settings.factor, true);
+    return false;
+}
+
+Item *ItemManager::DoItemAlloc(
         char *key,
         const size_t nkey,
         const int flags,
         const rel_time_t exptime,
         const int nbytes,
         const uint32_t cur_hv) {
-    SlabsManager& sm_instance = SlabsManager::GetInstance();
     uint8_t nsuffix;
     char suffix[40];
     size_t ntotal = ItemMakeHeader(nkey + 1, flags, nbytes, suffix, &nsuffix);
@@ -185,7 +197,7 @@ Item *ItemMaintainer::DoItemAlloc(
     return it;
 }
 
-void ItemMaintainer::FreeItem(Item *it) {
+void ItemManager::FreeItem(Item *it) {
     assert((it->it_flags & ITEM_LINKED) == 0);
     assert(it != heads[it->slabs_clsid]);
     assert(it != tails[it->slabs_clsid]);
@@ -197,7 +209,7 @@ void ItemMaintainer::FreeItem(Item *it) {
     sm_instance.FreeSlabs(it, ITEM_ntotal(it), ITEM_clsid(it));
 }
 
-bool ItemMaintainer::ItemSizeOk(const size_t nkey, const int flags, const int nbytes) {
+bool ItemManager::ItemSizeOk(const size_t nkey, const int flags, const int nbytes) {
     char prefix[40];
     uint8_t nsuffix;
 
@@ -209,7 +221,7 @@ bool ItemMaintainer::ItemSizeOk(const size_t nkey, const int flags, const int nb
     return im_instance.SlabsClsid(ntotal) != 0;
 }
 
-int  ItemMaintainer::DoItemLink(Item *it, const uint32_t hv) {
+int  ItemManager::DoItemLink(Item *it, const uint32_t hv) {
     assert((it->it_flags & (ITEM_LINKED | ITEM_SLABBED)) == 0);
     it->it_flags |= ITEM_LINKED;
     it->time = current_time_;
@@ -228,7 +240,7 @@ int  ItemMaintainer::DoItemLink(Item *it, const uint32_t hv) {
     return 1;
 }
 
-void ItemMaintainer::DoItemUnlink(Item *it, const uint32_t hv) {
+void ItemManager::DoItemUnlink(Item *it, const uint32_t hv) {
     if ((it->it_flags & ITEM_LINKED) == 0) {
         return;
     }
@@ -242,14 +254,14 @@ void ItemMaintainer::DoItemUnlink(Item *it, const uint32_t hv) {
     DoItemRemove(it);
 }
 
-void ItemMaintainer::DoItemUnlinkNolock(Item *it, const uint32_t hv) {
+void ItemManager::DoItemUnlinkNolock(Item *it, const uint32_t hv) {
     /*
      * memcached code
      */
     DoItemUnlink(it, hv);
 }
 
-void ItemMaintainer::DoItemRemove(Item *it) {
+void ItemManager::DoItemRemove(Item *it) {
     assert((it->it_flags & ITEM_SLABBED) == 0);
     assert(it->refcount > 0);
 
@@ -258,7 +270,7 @@ void ItemMaintainer::DoItemRemove(Item *it) {
     }
 }
 
-void ItemMaintainer::DoItemUpdate(Item *it) {
+void ItemManager::DoItemUpdate(Item *it) {
     if (it->time >= current_tim_ - ITEM_UPDATE_INTERVAL) {
         return;
     }
@@ -274,7 +286,7 @@ void ItemMaintainer::DoItemUpdate(Item *it) {
     }
 }
 
-void ItemMaintainer::DoItemUpdateNolock(Item *it) {
+void ItemManager::DoItemUpdateNolock(Item *it) {
     if (it->time >= current_time_ - ITEM_UPDATE_INTERVAL) {
         return;
     }
@@ -287,14 +299,14 @@ void ItemMaintainer::DoItemUpdateNolock(Item *it) {
     }
 }
 
-int  ItemMaintainer::DoItemReplace(Item *it, Item *new_it, const uint32_t hv) {
+int  ItemManager::DoItemReplace(Item *it, Item *new_it, const uint32_t hv) {
     assert((it->it_flags & ITEM_SLABBED) == 0);
     DoItemUnlink(it, hv);
     return DoItemLink(new_it, hv);
 
 }
 
-enum StoreItemType ItemMaintainer::DoStoreItem(const uint32_t hv, Item* it, NreadOpType op) {
+enum StoreItemType ItemManager::DoStoreItem(const uint32_t hv, Item* it, NreadOpType op) {
     char *key = ITEM_key(it);
     Item *old_it = DoItemGet(key, it->nkey, hv);
     enum StoreItemType store_status = NOT_STORED;
@@ -432,7 +444,7 @@ enum StoreItemType ItemMaintainer::DoStoreItem(const uint32_t hv, Item* it, Nrea
     return store_status;
 }
 
-Item *ItemMaintainer::DoItemGet(const char *key, const size_t nkey, const uint32_t hv) {
+Item *ItemManager::DoItemGet(const char *key, const size_t nkey, const uint32_t hv) {
     Item *it = am_instance.AssocFind(key, nkey, hv);
     if (NULL != it) {
         RefcountIncr(&it->refcount);
@@ -498,7 +510,7 @@ Item *ItemMaintainer::DoItemGet(const char *key, const size_t nkey, const uint32
     return it;
 }
 
-Item *ItemMaintainer::DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv) {
+Item *ItemManager::DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv) {
     Item *it = DoItemGet(key, nkey, hv);
     if (NULL != it) {
         it->exptime = exptime;
@@ -506,31 +518,31 @@ Item *ItemMaintainer::DoItemTouch(const char *key, const size_t nkey, uint32_t e
     return it;
 }
 
-void ItemMaintainer::ItemLinkQ(Item* it) {
+void ItemManager::ItemLinkQ(Item* it) {
     CacheLock(it->slabs_clsid);
     DoItemLinkQ(it);
     CacheUnlock(it->slabs_clsid):
 }
 
-void ItemMaintainer::ItemUnlinkQ(Item* it) {
+void ItemManager::ItemUnlinkQ(Item* it) {
     CacheLock(it->slabs_clsid);
     DoItemUnlinkQ(it);
     CacheUnlock(it->slabs_clsid):
 }
 
-char *ItemMaintainer::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
+char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
 }
 
-void ItemMaintainer::ItemStats(ADD_STAT add_stats, void *c) {
+void ItemManager::ItemStats(ADD_STAT add_stats, void *c) {
 }
 
-void ItemMaintainer::ItemStatsTotals(ADD_STAT add_stats, void *c) {
+void ItemManager::ItemStatsTotals(ADD_STAT add_stats, void *c) {
 }
 
-void ItemMaintainer::ItemStatsSizes(ADD_STAT add_stats, void *c) {
+void ItemManager::ItemStatsSizes(ADD_STAT add_stats, void *c) {
 }
 
-int32_t ItemMaintainer::GetItemSizeByIndex(int32_t index) {
+int32_t ItemManager::GetItemSizeByIndex(int32_t index) {
     int32_t size = 0;
     CacheLock(index);
     size = item_sizes_[index];
@@ -538,35 +550,35 @@ int32_t ItemMaintainer::GetItemSizeByIndex(int32_t index) {
     return size;
 }
 
-void ItemMaintainer::ItemSizeIncrement(int32_t index) {
+void ItemManager::ItemSizeIncrement(int32_t index) {
     if (index >= LARGEST_ID) {
         return;
     }
     ++item_sizes_[index];
 }
 
-void ItemMaintainer::ItemSizeDecrement(int32_t index) {
+void ItemManager::ItemSizeDecrement(int32_t index) {
     if (index >= LARGEST_ID) {
         return;
     }
     --item_sizes_[index];
 }
 
-Item *ItemMaintainer::GetItemHeadByIndex(int32_t index) {
+Item *ItemManager::GetItemHeadByIndex(int32_t index) {
     CacheLock(index);
     item* it = heads_[index];
     CacheUnlock(index);
     return it;
 }
 
-Item *ItemMaintainer::GetItemTailByIndex(int32_t index) {
+Item *ItemManager::GetItemTailByIndex(int32_t index) {
     CacheLock(index);
     item* it = tails_[index];
     CacheUnlock(index);
     return it;
 }
 
-void ItemMaintainer::DoItemLinkQ(Item* it, bool is_crawler) {
+void ItemManager::DoItemLinkQ(Item* it, bool is_crawler) {
     Item **head, **tail;
     assert(it->it_flags == 1);
     assert(it->nbytes == 0);
@@ -594,7 +606,7 @@ void ItemMaintainer::DoItemLinkQ(Item* it, bool is_crawler) {
     }
 }
 
-void ItemMaintainer::DoItemUnlinkQ(Item* it, bool is_crawler) {
+void ItemManager::DoItemUnlinkQ(Item* it, bool is_crawler) {
     Item **head, **tail;
     int32_t lock_id = it->slabs_clsid;
     head = &heads_[lock_id];
@@ -622,15 +634,15 @@ void ItemMaintainer::DoItemUnlinkQ(Item* it, bool is_crawler) {
     }
 }
 
-void ItemMaintainer::CacheLock(int32_t lock_id) {
+void ItemManager::CacheLock(int32_t lock_id) {
     pthread_mutex_lock(&cache_locks_[lock_id]);
 }
 
-void ItemMaintainer::CacheUnlock(int32_t lock_id) {
+void ItemManager::CacheUnlock(int32_t lock_id) {
     pthread_mutex_unlock(&cache_locks_[lock_id]);
 }
 
-bool ItemMaintainer::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index) {
+bool ItemManager::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index) {
     ++item_stats_[is_index].crawler_items_checked;
     if ((eval_item->exptime != 0 &&
          eval_item->exptime < current_time_)
@@ -659,11 +671,11 @@ bool ItemMaintainer::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index
     return false;
 }
 
-void ItemMaintainer::Lock(uint32_t hv) {
+void ItemManager::Lock(uint32_t hv) {
     pthread_mutex_lock(&item_locks_[hv & hashmask(lg_power)]);
 }
 
-void *ItemMaintainer::TryLock(uint32_t hv) {
+void *ItemManager::TryLock(uint32_t hv) {
     pthread_mutex_t *lock = &item_locks_[hv & hashmask(lg_power)];
     if (pthread_mutex_trylock(lock) == 0) {
         return lock;
@@ -671,22 +683,22 @@ void *ItemMaintainer::TryLock(uint32_t hv) {
     return NULL;
 }
 
-void ItemMaintainer::TryLockUnlock(void *arg) {
+void ItemManager::TryLockUnlock(void *arg) {
     pthread_mutex_unlock((pthread_mutex_t *) lock);
 }
 
-void ItemMaintainer::Unlock(uint32_t hv) {
+void ItemManager::Unlock(uint32_t hv) {
     pthread_mutex_unlock(&item_locks_[hv & hashmask(item_lock_hashpower)]);
 }
 
-Item *ItemMaintainer::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
+Item *ItemManager::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
     /*
      * do_item_alloc handles its own locks
      */
     return DoItemAlloc(key, nkey, flags, exptime, nbytes, 0);
 }
 
-Item *ItemMaintainer::ItemGet(const char *key, const size_t nkey) {
+Item *ItemManager::ItemGet(const char *key, const size_t nkey) {
     uint32_t hv = Hash(key, nkey);
     Lock(hv);
     Item* it = DoItemGet(key, nkey, hv);
@@ -694,7 +706,7 @@ Item *ItemMaintainer::ItemGet(const char *key, const size_t nkey) {
     return it;
 }
 
-Item *ItemMaintainer::ItemTouch(const char *key, const size_t nkey, uint32_t exptime) {
+Item *ItemManager::ItemTouch(const char *key, const size_t nkey, uint32_t exptime) {
     uint32_t hv = Hash(key, nkey);
     Lock(hv);
     Item* it = DoItemTouch(key, nkey, exptime, hv);
@@ -703,7 +715,7 @@ Item *ItemMaintainer::ItemTouch(const char *key, const size_t nkey, uint32_t exp
 
 }
 
-int32_t ItemMaintainer::ItemLink(Item *it) {
+int32_t ItemManager::ItemLink(Item *it) {
     uint32_t hv = Hash(ITEM_key(item), item->nkey);
     Lock(hv);
     int32_t ret = DoItemLink(it, hv);
@@ -711,7 +723,7 @@ int32_t ItemMaintainer::ItemLink(Item *it) {
     return ret;
 }
 
-void ItemMaintainer::ItemRemove(Item *it) {
+void ItemManager::ItemRemove(Item *it) {
     uint32_t hv = Hash(ITEM_key(item), item->nkey);
     Lock(hv);
     int32_t ret = DoItemRemove(it);
@@ -719,25 +731,25 @@ void ItemMaintainer::ItemRemove(Item *it) {
     return ret;
 }
 
-int ItemMaintainer::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
+int ItemManager::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
     return DoItemReplace(it, new_it, hv);
 }
 
-void ItemMaintainer::ItemUnlink(Item *it) {
+void ItemManager::ItemUnlink(Item *it) {
     uint32_t hv = Hash(ITEM_key(item), item->nkey);
     Lock(hv);
     DoItemUnlink(item, hv);
     Unlock(hv);
 }
 
-void ItemMaintainer::ItemUpdate(Item *it) {
+void ItemManager::ItemUpdate(Item *it) {
     uint32_t hv = Hash(ITEM_key(item), item->nkey);
     Lock(hv);
     DoItemUpdate(item);
     Unlock(hv);
 }
 
-enum StoreItemType ItemMaintainer::StoreItem(Item *item, NreadOpType op) {
+enum StoreItemType ItemManager::StoreItem(Item *item, NreadOpType op) {
     uint32_t hv = Hash(ITEM_key(item), item->nkey);
     Lock(hv);
     enum StoreItemType ret = DoStoreItem(hv, it, op);
@@ -745,11 +757,11 @@ enum StoreItemType ItemMaintainer::StoreItem(Item *item, NreadOpType op) {
     return ret;
 }
 
-rel_time_t ItemMaintainer::GetCurrentTime() {
+rel_time_t ItemManager::GetCurrentTime() {
     return current_time_;
 }
 
-bool ItemMaintainer::IsFlushed(Item* it) {
+bool ItemManager::IsFlushed(Item* it) {
     rel_time_t oldest_live = g_settings.oldest_live;
     uint64_t cas = ITEM_get_cas(it);
     uint64_t oldest_cas = g_settings.oldest_cas;
@@ -763,7 +775,7 @@ bool ItemMaintainer::IsFlushed(Item* it) {
     return false;
 }
 
-size_t ItemMaintainer::ItemMakeHeader(const uint8_t nkey,
+size_t ItemManager::ItemMakeHeader(const uint8_t nkey,
                                       const int flags,
                                       const int nbytes,
                                       char *suffix,
@@ -775,7 +787,7 @@ size_t ItemMaintainer::ItemMakeHeader(const uint8_t nkey,
     return sizeof(Item) + nkey + *nsuffix + nbytes;
 }
 
-int32_t ItemMaintainer::ItemLRUPullTail(
+int32_t ItemManager::ItemLRUPullTail(
         const int orig_id,
         const LRUStatus cur_lru,
         const unsigned int total_chunks,
@@ -937,7 +949,7 @@ int32_t ItemMaintainer::ItemLRUPullTail(
     return removed;
 }
 
-void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
+void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
     struct timeval t = {.tv_sec = 1, .tv_usec = 0};
     static bool initialized = false;
 #if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
@@ -956,7 +968,7 @@ void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) 
             monotonic_start = ts.tv_sec - ITEM_UPDATE_INTERVAL - 2;
         }
 #endif
-        ev_init(&timer_w_, ItemMaintainer::ClockHandler);
+        ev_init(&timer_w_, ItemManager::ClockHandler);
         ev_timer_set(&timer_w_, 2, 0);
         ev_timer_start(time_loop, &timer_w_);
         ev_run(time_loop, 0);
@@ -976,7 +988,7 @@ void ItemMaintainer::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) 
         gettimeofday(&tv, NULL);
         current_time = (rel_time_t) (tv.tv_sec - process_started);
     }
-    ItemMaintainer::GetInstance().current_time_ = current_time;
+    ItemManager::GetInstance().current_time_ = current_time;
 }
 
 
