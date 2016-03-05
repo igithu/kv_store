@@ -45,6 +45,15 @@ struct SlabClass {
     unsigned int list_size; /* size of prev array */
 };
 
+enum ReassignResultType {
+    REASSIGN_OK=0,
+    REASSIGN_RUNNING,
+    REASSIGN_BADCLASS,
+    REASSIGN_NOSPARE,
+    REASSIGN_SRC_DST_SAME
+};
+
+
 extern Slab slab_rebal;
 extern volatile int slab_rebalance_signal;
 
@@ -95,12 +104,11 @@ class SlabsManager {
          * Hints as to freespace in slab class
          */
         unsigned int SlabsAvailableChunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks);
-
+        enum ReassignResultType SlabsReassign(int src, int dst);
          /*
           * If we hold this lock, rebalancer can't wake up or move
           */
         void PauseSlabsRebalancer();
-
         void ResumeSlabsRebalancer();
 
     private:
@@ -108,7 +116,17 @@ class SlabsManager {
 
         int NewSlab(const unsigned int id);
         void *MemoryAllocator(size_t size);
-        void FreeSingleSlabs(void *ptr, const size_t size, unsigned int id);
+        void FreeSlabs(void *ptr, const size_t size, unsigned int id);
+
+        int DoSlabsNewSlab(const unsigned int id);
+        void *DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks);
+        void DoSlabsFree(void *ptr, const size_t size, unsigned int id);
+        void DoSlabsStats(ADD_STAT add_stats, void *c);
+        enum ReassignResultType DoSlabsReassign(int src, int dst);
+
+        int GrowSlabList(const unsigned int id);
+        void FreeSlabPage(char *ptr, const unsigned int id);
+
 
         DISALLOW_COPY_AND_ASSIGN(SlabsManager);
 

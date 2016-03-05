@@ -305,7 +305,7 @@ class ItemManager {
          * Unprotected by a mutex lock since the core server does not require
          * it to be thread-safe.
          */
-        int   ItemReplace(Item *it, Item *new_it, const uint32_t hv);
+        int ItemReplace(Item *it, Item *new_it, const uint32_t hv);
         /*
          * Unlinks an item from the LRU and hashtable.
          */
@@ -313,7 +313,7 @@ class ItemManager {
         /*
          * Moves an item to the back of the LRU queue.
          */
-        void  ItemUpdate(Item *it);
+        void ItemUpdate(Item *it);
 
         /*
          * Stores an item in the cache (high level, obeys set/add/replace semantics)
