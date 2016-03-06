@@ -16,6 +16,10 @@
 
 #include "slabs_manager.h"
 
+#include "item_manager.h"
+#include "util.h"
+
+static ItemManager& im_instance = ItemManager::GetInstance();
 
 SlabsManager::SlabsManager() :
     mem_limit_(0),
@@ -128,7 +132,7 @@ bool SlabsManager::GetSlabStats(const char *stat_type, int nkey, ADD_STAT add_st
 void SlabsManager::SlabsStats(ADD_STAT add_stats, void *c) {
     pthread_mutex_lock(&slabs_lock_);
     DoSlabsStats(add_stats, c);
-    pthread_mutex_unlock(&slabs_lock);
+    pthread_mutex_unlock(&slabs_lock_);
 }
 
 unsigned int SlabsManager::SlabsAvailableChunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks) {
@@ -298,12 +302,44 @@ void SlabsManager::DoSlabsStats(ADD_STAT add_stats, void *c) {
 }
 
 enum ReassignResultType SlabsManager::DoSlabsReassign(int src, int dst) {
+    if (g_slab_rebalance_signal != 0) {
+        return REASSIGN_RUNNING;
+    }
+    if (src == dst) {
+        return REASSIGN_SRC_DST_SAME;
+    }
 
+    /*
+     * Special indicator to choose ourselves.
+     */
+    if (-1 == src) {
+        src = SlabsReassignPickany(dst);
+        /*
+         * TODO: If we end up back at -1, return a new error type
+         */
+    }
+
+    if (src < POWER_SMALLEST || src > power_largest ||
+        dst < POWER_SMALLEST || dst > power_largest) {
+        return REASSIGN_BADCLASS;
+    }
+
+    if (slabclass_[src].slabs < 2) {
+        return REASSIGN_NOSPARE;
+    }
+
+    g_slab_rebal.s_clsid = src;
+    g_slab_rebal.d_clsid = dst;
+
+    g_slab_rebalance_signal = 1;
+    // pthread_cond_signal(&slab_rebalance_cond);
+
+    return REASSIGN_OK;
 }
 
 
 int SlabsManager::GrowSlabList(const unsigned int id) {
-    SlabClass_t *p = &slabclass_[id];
+    SlabClass *p = &slabclass_[id];
     if (p->slabs == p->list_size) {
         size_t new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
         void *new_list = realloc(p->slab_list, new_size * sizeof(void *));
@@ -322,12 +358,239 @@ void SlabsManager::FreeSlabPage(char *ptr, const unsigned int id) {
     }
 }
 
+int SlabsReassignPickany::SlabsReassignPickany(int dst) {
+    static int cur = POWER_SMALLEST - 1;
+    for (int tries = power_largest_ - POWER_SMALLEST + 1; tries > 0; --tries) {
+        ++cur;
+        if (cur > power_largest_) {
+            cur = POWER_SMALLEST;
+        }
+        if (cur == dst) {
+            continue;
+        }
+        if (slabclass_[cur].slabs > 1) {
+            return cur;
+        }
+    }
+    return -1;
 
+}
 
+int SlabsManager::SlabAutomoveDecision(int *src, int *dst) {
+    static rel_time_t next_run = 0;
+    rel_time_t current_time = im_instance.GetCurrentTime();
+    /*
+     * Run less frequently than the slabmove tester.
+     */
+    if (current_time >= next_run) {
+        next_run = current_time + 10;
+    } else {
+        return 0;
+    }
 
+    uint64_t evicted_new[MAX_NUMBER_OF_SLAB_CLASSES];
+    unsigned int total_pages[MAX_NUMBER_OF_SLAB_CLASSES];
+    im_instance.ItemStatsEvictions(evicted_new);
+    pthread_mutex_lock(&slabs_lock_);
+    for (int i = POWER_SMALLEST; i < power_largest; ++i) {
+        total_pages[i] = slabclass_[i].slabs;
+    }
+    pthread_mutex_unlock(&slabs_lock_);
 
+    /*
+     * Find a candidate source; something with zero evicts 3+ times
+     */
+    static uint64_t evicted_old[MAX_NUMBER_OF_SLAB_CLASSES];
+    static unsigned int slab_zeroes[MAX_NUMBER_OF_SLAB_CLASSES];
+    unsigned int highest_slab = 0;
+    uint64_t evicted_diff = 0, evicted_max  = 0;
+    int source = 0;
+    for (int i = POWER_SMALLEST; i < power_largest; ++i) {
+        evicted_diff = evicted_new[i] - evicted_old[i];
+        if (evicted_diff == 0 && total_pages[i] > 2) {
+            slab_zeroes[i]++;
+            if (source == 0 && slab_zeroes[i] >= 3)
+                source = i;
+        } else {
+            slab_zeroes[i] = 0;
+            if (evicted_diff > evicted_max) {
+                evicted_max = evicted_diff;
+                highest_slab = i;
+            }
+        }
+        evicted_old[i] = evicted_new[i];
+    }
 
+    /*
+     * Pick a valid destination
+     */
+    static unsigned int slab_winner = 0, slab_wins   = 0;
+    int dest = 0;
+    if (slab_winner != 0 && slab_winner == highest_slab) {
+        ++slab_wins;
+        if (slab_wins >= 3) {
+            dest = slab_winner;
+        }
+    } else {
+        slab_wins = 1;
+        slab_winner = highest_slab;
+    }
 
+    if (source && dest) {
+        *src = source;
+        *dst = dest;
+        return 1;
+    }
+    return 0;
+}
+
+void SlabsManager::SlabsAdjustMemRequested(unsigned int id, size_t old, size_t ntotal) {
+    pthread_mutex_lock(&slabs_lock_);
+    if (id < POWER_SMALLEST || id > power_largest) {
+        fprintf(stderr, "Internal error! Invalid slab class\n");
+        abort();
+    }
+    SlabClass* p = &slabclass_[id];
+    p->requested = p->requested - old + ntotal;
+    pthread_mutex_unlock(&slabs_lock_);
+}
+
+/*
+ * refcount == 0 is safe since nobody can incr while item_lock is held.
+ * refcount != 0 is impossible since flags/etc can be modified in other
+ * threads. instead, note we found a busy one and bail. logic in do_item_get
+ * will prevent busy items from continuing to be busy
+ * NOTE: This is checking it_flags outside of an item lock. I believe this
+ * works since it_flags is 8 bits, and we're only ever comparing a single bit
+ * regardless. ITEM_SLABBED bit will always be correct since we're holding the
+ * lock which modifies that bit. ITEM_LINKED won't exist if we're between an
+ * item having ITEM_SLABBED removed, and the key hasn't been added to the item
+ * yet. The memory barrier from the slabs lock should order the key write and the
+ * flags to the item?
+ * If ITEM_LINKED did exist and was just removed, but we still see it, that's
+ * still safe since it will have a valid key, which we then lock, and then
+ * recheck everything.
+ * This may not be safe on all platforms; If not, slabs_alloc() will need to
+ * seed the item key while holding slabs_lock.
+ */
+int SlabsManager::SlabRebalanceMove() {
+    int was_busy = 0, refcount = 0;
+    enum MoveStatus m_status = MOVE_PASS;
+
+    pthread_mutex_lock(&slabs_lock_);
+    SlabClass* s_cls = &slabclass[g_slab_rebal.s_clsid];
+
+    for (int x = 0; x < slab_bulk_check; ++x) {
+        uint32_t hv = 0;
+        void *hold_lock = NULL;
+        Item *it = g_slab_rebal.slab_pos;
+        m_status = MOVE_PASS;
+        if (it->slabs_clsid != 255) {
+            /*
+             * ITEM_SLABBED can only be added/removed under the slabs_lock
+             */
+            if (it->it_flags & ITEM_SLABBED) {
+                /*
+                 * remove from slab freelist
+                 */
+                if (s_cls->slots == it) {
+                    s_cls->slots = it->next;
+                }
+                if (it->next) {
+                    it->next->prev = it->prev;
+                }
+                if (it->prev) {
+                    it->prev->next = it->next;
+                }
+                s_cls->sl_curr--;
+                m_status = MOVE_FROM_SLAB;
+            } else if ((it->it_flags & ITEM_LINKED) != 0) {
+                /*
+                 * If it doesn't have ITEM_SLABBED, the item could be in any
+                 * state on its way to being freed or written to. If no
+                 * ITEM_SLABBED, but it's had ITEM_LINKED, it must be active
+                 * and have the key written to it already.
+                 */
+                hv = Hash(ITEM_key(it), it->nkey);
+                if ((hold_lock = im_instance.TryLock(hv)) == NULL) {
+                    m_status = MOVE_LOCKED;
+                } else {
+                    int refcount = RefcountIncr(&it->refcount);
+                    if (refcount == 2) {
+                        /* item is linked but not busy */
+                        /* Double check ITEM_LINKED flag here, since we're
+                         * past a memory barrier from the mutex. */
+                        if ((it->it_flags & ITEM_LINKED) != 0) {
+                            m_status = MOVE_FROM_LRU;
+                        } else {
+                            /* refcount == 1 + !ITEM_LINKED means the item is being
+                             * uploaded to, or was just unlinked but hasn't been freed
+                             * yet. Let it bleed off on its own and try again later */
+                            m_status = MOVE_BUSY;
+                        }
+                    } else {
+                        if (settings.verbose > 2) {
+                            fprintf(stderr, "Slab reassign hit a busy item: refcount: %d (%d -> %d)\n",
+                                it->refcount, slab_rebal.s_clsid, slab_rebal.d_clsid);
+                        }
+                        m_status = MOVE_BUSY;
+                    }
+                    /*
+                     * Item lock must be held while modifying refcount
+                     */
+                    if (m_status == MOVE_BUSY) {
+                        RefcountDecr(&it->refcount);
+                        im_instance.TryLockUnlock(hold_lock);
+                    }
+                }
+            }
+        }
+
+        switch (m_status) {
+            case MOVE_FROM_LRU:
+                /*
+                 * Lock order is LRU locks -> slabs_lock. unlink uses LRU lock.
+                 * We only need to hold the slabs_lock while initially looking
+                 * at an item, and at this point we have an exclusive refcount
+                 * (2) + the item is locked. Drop slabs lock, drop item to
+                 * refcount 1 (just our own, then fall through and wipe it
+                 */
+                pthread_mutex_unlock(&slabs_lock_);
+                im_instance.DoItemUnlink(it, hv);
+                im_instance.TryLockUnlock(hold_lock);
+                pthread_mutex_lock(&slabs_lock_);
+            case MOVE_FROM_SLAB:
+                it->refcount = 0;
+                it->it_flags = 0;
+                it->slabs_clsid = 255;
+                break;
+            case MOVE_BUSY:
+            case MOVE_LOCKED:
+                g_slab_rebal.busy_items++;
+                ++was_busy;
+                break;
+            case MOVE_PASS:
+                break;
+        }
+
+        g_slab_rebal.slab_pos = (char *)g_slab_rebal.slab_pos + s_cls->size;
+        if (g_slab_rebal.slab_pos >= g_slab_rebal.slab_end)
+            break;
+    }
+
+    if (g_slab_rebal.slab_pos >= g_slab_rebal.slab_end) {
+        /* Some items were busy, start again from the top */
+        if (g_slab_rebal.busy_items) {
+            g_slab_rebal.slab_pos = g_slab_rebal.slab_start;
+            g_slab_rebal.busy_items = 0;
+        } else {
+            g_slab_rebal.done++;
+        }
+    }
+    pthread_mutex_unlock(&slabs_lock_);
+
+    return was_busy;
+}
 
 
 

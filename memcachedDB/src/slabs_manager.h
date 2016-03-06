@@ -53,9 +53,16 @@ enum ReassignResultType {
     REASSIGN_SRC_DST_SAME
 };
 
+enum MoveStatus {
+    MOVE_PASS=0,
+    MOVE_FROM_SLAB,
+    MOVE_FROM_LRU,
+    MOVE_BUSY,
+    MOVE_LOCKED
+};
 
-extern Slab slab_rebal;
-extern volatile int slab_rebalance_signal;
+extern Slab g_slab_rebal;
+extern volatile int g_slab_rebalance_signal;
 
 class SlabsManager {
     public:
@@ -126,9 +133,25 @@ class SlabsManager {
 
         int GrowSlabList(const unsigned int id);
         void FreeSlabPage(char *ptr, const unsigned int id);
-
+        /*
+         * Iterate at most once through the slab classes and pick a "random" source.
+         * I like this better than calling rand() since rand() is slow enough that we
+         * can just check all of the classes once instead.
+         */
+        int SlabsReassignPickany(int dst);
 
         DISALLOW_COPY_AND_ASSIGN(SlabsManager);
+
+    protected:
+
+        /* Return 1 means a decision was reached.
+         * Move to its own thread (created/destroyed as needed) once automover is mor
+         * complex.
+         */
+        int SlabAutomoveDecision(int *src, int *dst);
+        void SlabsAdjustMemRequested(unsigned int id, size_t old, size_t ntotal);
+        int SlabRbalanceMove();
+
 
     private:
         SlabClass slabclass[MAX_NUMBER_OF_SLAB_CLASSES];

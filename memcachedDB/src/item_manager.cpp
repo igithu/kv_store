@@ -32,6 +32,7 @@ static SlabsManager& sm_instance = SlabsManager::GetInstance();
  * lg : local global
  */
 static int32_t lg_power = 13;
+static LRUStatus lru_status[4] = {HOT_LRU, WARM_LRU, COLD_LRU, NOEXP_LRU};
 
 static struct ev_loop *ItemManager::time_loop_ = ev_default_loop(0);
 
@@ -160,7 +161,7 @@ Item *ItemManager::DoItemAlloc(
 
     if (it == NULL) {
         CacheLock(id);
-        itemstats[id].outofmemory++;
+        item_stats_[id].outofmemory++;
         CacheUnlock(id);
         return NULL;
     }
@@ -669,6 +670,17 @@ bool ItemManager::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index) {
         return true;
     }
     return false;
+}
+
+void ItemManager::ItemStatsEvictions(uint64_t *evicted) {
+    for (int32_t n = 0; n < MAX_NUMBER_OF_SLAB_CLASSES; ++n) {
+        for (int32_t x = 0; x < 4; ++x) {
+            int32_t i = n | lru_status[x];
+            CacheLock(i);
+            evicted[n] += item_stats_[i].evicted;
+            CacheUnlock(i);
+        }
+    }
 }
 
 void ItemManager::Lock(uint32_t hv) {

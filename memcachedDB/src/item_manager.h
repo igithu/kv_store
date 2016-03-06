@@ -274,6 +274,7 @@ class ItemManager {
         void CacheUnlock(int32_t lock_id);
 
         bool ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index);
+        void ItemStatsEvictions(uint64_t *evicted);
 
         void Lock(uint32_t hv);
         void *TryLock(uint32_t hv);
