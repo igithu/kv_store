@@ -94,7 +94,7 @@ class AssocMaintainer : public Thread {
         unsigned int expand_bucket_;
         int32_t hash_bulk_move_;
 
-        bool assoc_running_;
+        volatile bool assoc_running_;
 
         pthread_cond_t maintenance_cond_; // = PTHREAD_COND_INITIALIZER;
         pthread_mutex_t maintenance_lock_; //  = PTHREAD_MUTEX_INITIALIZER;

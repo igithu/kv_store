@@ -22,6 +22,8 @@
 
 #include <pthread.h>
 
+#include <atomic.h>
+
 #include "thread.h"
 
 class SlabsRebalancer : public Thread {
@@ -30,10 +32,10 @@ class SlabsRebalancer : public Thread {
         ~SlabsRebalancer();
 
         virtual void Run();
+        void StopSlabsRebalancer();
 
     private:
-        pthread_cond_t slab_rebalance_cond_;
-
+        volatile std::atomic<bool> slabs_rebalancer_running_;
 };
 
 

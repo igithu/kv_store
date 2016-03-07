@@ -62,6 +62,7 @@ class LRUCrawler : public Thread {
         virtual void Run();
 
         bool InitLRUCrawler();
+        bool StartLRUCrawler();
         /*
          * stop the LRUCrawler thread
          */
@@ -94,7 +95,7 @@ class LRUCrawler : public Thread {
 
     private:
         bool lru_crawler_initialized_;
-        bool lru_crawler_runnng_;
+        volatile bool lru_crawler_running_;
         int32_t crawler_count_;
 
         Crawler *crawlers_;

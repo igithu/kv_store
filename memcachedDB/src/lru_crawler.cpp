@@ -25,7 +25,7 @@ static ItemManager& im_instance = ItemMaintainer::GetInstance();
 
 LRUCrawler::LRUCrawler() :
     lru_crawler_initialized_(false),
-    lru_crawler_runnng_(false),
+    lru_crawler_running_(false),
     crawler_count_(0),
     lru_crawler_lock_(PTHREAD_MUTEX_INITIALIZER),
     lru_crawler_cond_(PTHREAD_COND_INITIALIZER),
@@ -55,7 +55,7 @@ void LRUCrawler::Run() {
         fprintf(stderr, "Starting LRU crawler background thread\n");
     }
     pthread_mutex_lock(&lru_crawler_lock_);
-    while (lru_crawler_runnng_) {
+    while (lru_crawler_running_) {
         pthread_cond_wait(&lru_crawler_cond_, &lru_crawler_lock_);
         while (crawler_count_) {
             Item *search = NULL;
@@ -144,9 +144,23 @@ bool InitLRUCrawler::InitLRUCrawler() {
     return true;
 }
 
+bool LRUCrawler::StartLRUCrawler() {
+    if (g_settings.lru_crawler) {
+        return true
+    }
+    pthread_mutex_lock(&lru_crawler_lock_);
+    lru_crawler_running_ = true;
+    g_settings.lru_crawler = true;
+    if (!Start()) {
+        fprintf(stderr, "Failed to stop LRU crawler thread\n");
+        return false;
+    }
+    pthread_mutex_unlock(&lru_crawler_lock_);
+}
+
 void LRUCrawler::StopLRUCrawler() {
     pthread_mutex_lock(&lru_crawler_lock_);
-    lru_crawler_runnng_ = false;
+    lru_crawler_running_ = false;
     pthread_cond_signal(&lru_crawler_cond_);
     pthread_mutex_unlock(&lru_crawler_lock_);
 

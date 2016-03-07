@@ -45,7 +45,7 @@ void LRUMaintainer::Run() {
     useconds_t to_sleep = MIN_LRU_MAINTAINER_SLEEP;
     rel_time_t last_crawler_check = 0;
 
-    if (settings.verbose > 2) {
+    if (g_settings.verbose > 2) {
         fprintf(stderr, "Starting LRU maintainer background thread\n");
     }
     pthread_mutex_lock(&lru_maintainer_lock_);
@@ -84,7 +84,7 @@ void LRUMaintainer::Run() {
         }
     }
     pthread_mutex_unlock(&lru_maintainer_lock_);
-    if (settings.verbose > 2) {
+    if (g_settings.verbose > 2) {
         fprintf(stderr, "LRU maintainer thread stopping\n");
     }
 }
@@ -93,7 +93,7 @@ int32_t LRUMaintainer::LRUMaintainerJuggle(const int32_t slabs_clsid) {
     unsigned int total_chunks = 0;
     bool mem_limit_reached = false;
     sm_instance.SlabsAvailableChunks(slabs_clsid, &mem_limit_reached, &total_chunks);
-    if (settings.expirezero_does_not_evict)
+    if (g_settings.expirezero_does_not_evict)
         total_chunks -= noexp_lru_size(slabs_clsid);
 
     /* Juggle HOT/WARM up to N times */
@@ -117,6 +117,22 @@ int32_t LRUMaintainer::InitLRUMaintainer() {
         pthread_mutex_init(&lru_maintainer_lock_, NULL);
         lru_maintainer_initialized_ = true;
     }
+    return 0;
+}
+
+bool LRUMaintainer::StartLRUMaintainer() {
+    if (g_settings.lru_maintainer_thread) {
+        return true
+    }
+    pthread_mutex_lock(&lru_maintainer_lock_);
+    lru_maintainer_running_ = true;
+    g_settings.lru_maintainer_thread = true;
+    if (!Start()) {
+        fprintf(stderr, "Failed to stop LRU maintainer thread\n");
+        return false;
+    }
+    pthread_mutex_unlock(&lru_maintainer_lock_);
+    return true;
 }
 
 void LRUMaintainer::StopLRUMaintainer() {

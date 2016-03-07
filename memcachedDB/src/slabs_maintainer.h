@@ -22,12 +22,19 @@
 
 #include "thread.h"
 
+#include <atomic.h>
+
 class SlabsMaintainer : public Thread {
     public:
         SlabsMaintainer();
         ~SlabsMaintainer();
 
         virtual void Run();
+
+        void StopSlabsMaintainer();
+
+    private:
+        volatile std::atomic<bool> slabs_maintainer_running_;
 };
 
 

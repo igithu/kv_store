@@ -64,13 +64,21 @@ enum MoveStatus {
 extern Slab g_slab_rebal;
 extern volatile int g_slab_rebalance_signal;
 
+
+class SlabsMaintainer;
+class SlabsRebalancer;
+
 class SlabsManager {
     public:
+        friend class SlabsMaintainer;
+        friend class SlabsRebalancer;
+
         ~SlabsManager();
 
         static SlabsManager& GetInstance();
 
         bool Start();
+        void Stop();
 
         /*
          * Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
@@ -150,7 +158,9 @@ class SlabsManager {
          */
         int SlabAutomoveDecision(int *src, int *dst);
         void SlabsAdjustMemRequested(unsigned int id, size_t old, size_t ntotal);
-        int SlabRbalanceMove();
+        int SlabsRebalancerMove();
+        int SlabRebalanceStart();
+        void SlabsRebalanceFinish();
 
 
     private:
@@ -165,6 +175,7 @@ class SlabsManager {
          */
         bool mem_limit_reached_;
         int power_largest_;
+        int slab_bulk_check_;
 
         void *mem_base_;
         void *mem_current_;
@@ -174,7 +185,11 @@ class SlabsManager {
          * Access to the slab allocator is protected by this lock
          */
         pthread_mutex_t slabs_lock_;
+
+    protected:
         pthread_mutex_t slabs_rebalance_lock_;
+        pthread_cond_t slab_rebalance_cond_;
+        volatile int slab_rebalance_signal_;
 
 };
 

@@ -36,6 +36,7 @@ class LRUMaintainer : public Thread {
         virtual void Run();
 
         int32_t InitLRUMaintainer();
+        bool StartLRUMaintainer();
         void StopLRUMaintainer();
         void PauseLRU();
         void ResumeLRU();
@@ -50,7 +51,7 @@ class LRUMaintainer : public Thread {
 
     private:
         bool lru_maintainer_initialized_;
-        bool lru_maintainer_running_;
+        volatile bool lru_maintainer_running_;
         bool lru_clsid_;
 
         pthread_mutex_t lru_maintainer_lock_;

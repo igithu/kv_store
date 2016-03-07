@@ -354,7 +354,7 @@ class ItemManager {
         ItemStats *item_stats_;
         pthread_mutex_t *cache_locks_;
 
-        rel_time_t current_time_;
+        volatile rel_time_t current_time_;
         static struct ev_loop *time_loop_;
         static ev_timer timer_w_;
 

@@ -17,15 +17,21 @@
 #include "slabs_manager.h"
 
 #include "item_manager.h"
+#include "slabs_maintainer.h"
+#include "slabs_rebalancer.h"
 #include "util.h"
 
 static ItemManager& im_instance = ItemManager::GetInstance();
+static SlabsMaintainer& sm_instance = SlabsMaintainer::GetInstance();
+static SlabsRebalancer& sr_instance = SlabsRebalancer::GetInstance();
+
 
 SlabsManager::SlabsManager() :
     mem_limit_(0),
     mem_malloced_(0),
     mem_limit_reached_(false),
     power_largest_(0),
+    slab_bulk_check_(1),
     mem_base_(NULL),
     mem_current_(NULL),
     mem_avail_(0),
@@ -42,6 +48,41 @@ SlabsManager& SlabsManager::GetInstance() {
 }
 
 bool SlabsManager::Start() {
+    slab_rebalance_signal_ = 0;
+    g_slab_rebal.slab_start = NULL;
+    char *env = getenv("MEMCACHED_SLAB_BULK_CHECK");
+    if (env != NULL) {
+        slab_bulk_check_ = atoi(env);
+        if (slab_bulk_check_ == 0) {
+            slab_bulk_check = 1;
+        }
+    }
+
+    if (pthread_cond_init(&slab_rebalance_cond_, NULL) != 0) {
+        fprintf(stderr, "Can't intiialize rebalance condition\n");
+        return false;
+    }
+    pthread_mutex_init(&slabs_rebalance_lock_, NULL);
+    if (!sm_instance.Start()) {
+        fprintf(stderr, "Can't create slab maint thread.\n");
+        return false;
+    }
+    if (!sr_instance.Start()) {
+        fprintf(stderr, "Can't create rebal thread.\n");
+        return false;
+    }
+    return true;
+}
+
+void SlabsManager::Stop() {
+    pthread_mutex_lock(&slabs_rebalance_lock_);
+    sm_instance.StopSlabsMaintainer();
+    sr_instance.StopSlabsRebalancer();
+    pthread_mutex_unlock(&slabs_rebalance_lock_);
+    pthread_cond_signal(&sm_instance.slab_rebalance_cond_);
+
+    sm_instance.Wait();
+    sr_instance.Wait();
 }
 
 void SlabsManager::InitSlabs(const size_t limit, const double factor, const bool prealloc) {
@@ -73,16 +114,16 @@ void SlabsManager::InitSlabs(const size_t limit, const double factor, const bool
         slabclass_[i].size = size;
         slabclass_[i].perslab = g_settings.item_size_max / slabclass_[i].size;
         size *= factor;
-        if (settings.verbose > 1) {
+        if (g_settings.verbose > 1) {
             fprintf(stderr, "slab class %3d: chunk size %9u perslab %7u\n",
                     i, slabclass_[i].size, slabclass_[i].perslab);
         }
     }
 
     power_largest = i;
-    slabclass_[power_largest].size = settings.item_size_max;
+    slabclass_[power_largest].size = g_settings.item_size_max;
     slabclass_[power_largest].perslab = 1;
-    if (settings.verbose > 1) {
+    if (g_settings.verbose > 1) {
         fprintf(stderr, "slab class %3d: chunk size %9u perslab %7u\n",
                 i, slabclass_[i].size, slabclass_[i].perslab);
     }
@@ -358,7 +399,7 @@ void SlabsManager::FreeSlabPage(char *ptr, const unsigned int id) {
     }
 }
 
-int SlabsReassignPickany::SlabsReassignPickany(int dst) {
+int SlabsManager::SlabsReassignPickany(int dst) {
     static int cur = POWER_SMALLEST - 1;
     for (int tries = power_largest_ - POWER_SMALLEST + 1; tries > 0; --tries) {
         ++cur;
@@ -375,6 +416,7 @@ int SlabsReassignPickany::SlabsReassignPickany(int dst) {
     return -1;
 
 }
+
 
 int SlabsManager::SlabAutomoveDecision(int *src, int *dst) {
     static rel_time_t next_run = 0;
@@ -473,7 +515,7 @@ void SlabsManager::SlabsAdjustMemRequested(unsigned int id, size_t old, size_t n
  * This may not be safe on all platforms; If not, slabs_alloc() will need to
  * seed the item key while holding slabs_lock.
  */
-int SlabsManager::SlabRebalanceMove() {
+int SlabsManager::SlabsRebalancerMove() {
     int was_busy = 0, refcount = 0;
     enum MoveStatus m_status = MOVE_PASS;
 
@@ -529,7 +571,7 @@ int SlabsManager::SlabRebalanceMove() {
                             m_status = MOVE_BUSY;
                         }
                     } else {
-                        if (settings.verbose > 2) {
+                        if (g_settings.verbose > 2) {
                             fprintf(stderr, "Slab reassign hit a busy item: refcount: %d (%d -> %d)\n",
                                 it->refcount, slab_rebal.s_clsid, slab_rebal.d_clsid);
                         }
@@ -592,9 +634,11 @@ int SlabsManager::SlabRebalanceMove() {
     return was_busy;
 }
 
+int SlabsManager::SlabRebalanceStart() {
+}
 
-
-
+void SlabsManager::SlabsSlabsRebalanceFinish() {
+}
 
 
 
