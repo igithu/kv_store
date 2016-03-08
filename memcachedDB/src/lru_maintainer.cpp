@@ -20,8 +20,8 @@
 #include "slabs_manager.h"
 #include "util.h"
 
-#define MAX_LRU_MAINTAINER_SLEEP 1000000
-#define MIN_LRU_MAINTAINER_SLEEP 1000
+const int MAX_LRU_MAINTAINER_SLEEP = 1000000;
+const int  MIN_LRU_MAINTAINER_SLEEP = 1000;
 
 static ItemManager& im_instance = ItemManager::GetInstance();
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
@@ -93,21 +93,25 @@ int32_t LRUMaintainer::LRUMaintainerJuggle(const int32_t slabs_clsid) {
     unsigned int total_chunks = 0;
     bool mem_limit_reached = false;
     sm_instance.SlabsAvailableChunks(slabs_clsid, &mem_limit_reached, &total_chunks);
-    if (g_settings.expirezero_does_not_evict)
-        total_chunks -= noexp_lru_size(slabs_clsid);
+    if (g_settings.expirezero_does_not_evict) {
+        total_chunks -= im_instance.NoExpLRUSize(slabs_clsid);
+    }
 
-    /* Juggle HOT/WARM up to N times */
+    /*
+     * Juggle HOT/WARM up to N times
+     */
     int32_t did_moves = 0;
     for (int32_t i = 0; i < 1000; ++i) {
         int do_more = 0;
         if (im_instance.ItemLRUPullTail(slabs_clsid, HOT_LRU, total_chunks, false, 0) ||
             im_instance.ItemLRUPullTail(slabs_clsid, WARM_LRU, total_chunks, false, 0)) {
-            do_more++;
+            ++do_more;
         }
         do_more += im_instance.ItemLRUPullTail(slabs_clsid, COLD_LRU, total_chunks, false, 0);
-        if (do_more == 0)
+        if (0 == do_more) {
             break;
-        did_moves++;
+        }
+        ++did_moves;
     }
     return did_moves;
 }

@@ -66,20 +66,21 @@ void LRUCrawler::Run() {
                 }
                 im_instance.CacheLock(i);
                 search = im_instance.DoItemLinkQ((Item *)&crawlers_[i], true);
-                if (search == NULL || (crawlers_[i].remaining && --crawlers[i].remaining < 1)) {
-                    if (g_settings.verbose > 2)
+                if (NULL == search || (crawlers_[i].remaining && --crawlers_[i].remaining < 1)) {
+                    if (g_settings.verbose > 2) {
                         fprintf(stderr, "Nothing left to crawl for %d\n", i);
+                    }
                     crawlers_[i].it_flags = 0;
-                    crawler_count--;
+                    --crawler_count;
                     im_instance.ItemUnlinkQ((Item *)&crawlers_[i]);
-                    im_instance.CacheLock(i)
+                    im_instance.CacheUnlock(i)
                     pthread_mutex_lock(&lru_crawler_stats_lock_);
                     crawler_stats_[CLEAR_LRU(i)].end_time = im_instance.GetCurrentTime();
                     crawler_stats_[CLEAR_LRU(i)].run_complete = true;
                     pthread_mutex_unlock(&lru_crawler_stats_lock_);
                     continue;
                 }
-                uint32_t hv = hash(ITEM_key(search), search->nkey);
+                uint32_t hv = Hash(ITEM_key(search), search->nkey);
                 /* Attempt to hash item lock the "search" item. If locked, no
                  * other callers can incr the refcount
                  */
@@ -123,11 +124,9 @@ void LRUCrawler::Run() {
         StatsUnlock();
     }
     pthread_mutex_unlock(&lru_crawler_lock_);
-    if (g_settings.verbose > 2)
+    if (g_settings.verbose > 2) {
         fprintf(stderr, "LRU crawler thread stopping\n");
-
-    return NULL;
-
+    }
 }
 
 bool InitLRUCrawler::InitLRUCrawler() {

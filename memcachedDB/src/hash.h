@@ -22,7 +22,7 @@
 
 typedef uint32_t (*HashFunc)(const void *key, size_t length);
 
-HashFunc hash;
+HashFunc Hash;
 
 enum HashfuncType {
     JENKINS_HASH = 0, MURMUR3_HASH

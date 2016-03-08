@@ -253,6 +253,15 @@ class ItemManager {
         void DoItemLinkQ(Item* it, bool is_crawler = false);
         void DoItemUnlinkQ(Item* it, bool is_crawler = false);
 
+        /*@null@*/
+        /*
+         * This is walking the line of violating lock order, but I think it's safe.
+         * If the LRU lock is held, an item in the LRU cannot be wiped and freed.
+         * The data could possibly be overwritten, but this is only accessing the
+         * headers.
+         * It may not be the best idea to leave it like this, but for now it's safe.
+         * FIXME: only dumps the hot LRU with the new LRU's.
+         */
         char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
         void ItemStats(ADD_STAT add_stats, void *c);
         void ItemStatsTotals(ADD_STAT add_stats, void *c);
@@ -342,6 +351,7 @@ class ItemManager {
                 const uint32_t cur_hv);
 
 
+        unsigned int32_t NoExpLRUSize(int32_t slabs_clsid);
         static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
 
         DISALLOW_COPY_AND_ASSIGN(ItemManager);

@@ -37,13 +37,13 @@ void SlabsRebalancer::Run() {
     pthread_mutex_lock(&slabs_rebalance_lock);
     int was_busy = 0;
     while (slabs_rebalancer_running_) {
-        if (sm_instance.slab_rebalance_signal_ == 1) {
+        if (g_slab_rebalance_signal == 1) {
             if (sm_instance.SlabRebalanceStart() < 0) {
                 /* Handle errors with more specifity as required. */
-                sm_instance.slab_rebalance_signal = 0;
+                g_slab_rebalance_signal = 0;
             }
             was_busy = 0;
-        } else if (sm_instance.slab_rebalance_signal_ && g_slab_rebal.slab_start != NULL) {
+        } else if (g_slab_rebalance_signal && g_slab_rebal.slab_start != NULL) {
             was_busy = sm_instance.SlabsRebalancerMove();
         }
 
@@ -57,7 +57,7 @@ void SlabsRebalancer::Run() {
             usleep(50);
         }
 
-        if (sm_instance.slab_rebalance_signal == 0) {
+        if (g_slab_rebalance_signal == 0) {
             /*
              * always hold this lock while we're running
              */

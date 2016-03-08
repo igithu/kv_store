@@ -21,6 +21,7 @@
 #include "assoc_maintainer.h"
 #include "slabs_manager.h"
 #include "global.h"
+#include "hash.h"
 #include "util.h"
 
 
@@ -200,8 +201,8 @@ Item *ItemManager::DoItemAlloc(
 
 void ItemManager::FreeItem(Item *it) {
     assert((it->it_flags & ITEM_LINKED) == 0);
-    assert(it != heads[it->slabs_clsid]);
-    assert(it != tails[it->slabs_clsid]);
+    assert(it != heads_[it->slabs_clsid]);
+    assert(it != tails_[it->slabs_clsid]);
     assert(it->refcount == 0);
 
     /*
@@ -532,6 +533,55 @@ void ItemManager::ItemUnlinkQ(Item* it) {
 }
 
 char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
+    unsigned int32_t memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
+    unsigned int id = slabs_clsid;
+
+    if (!g_settings.lru_maintainer_thread) {
+        id |= COLD_LRU;
+    }
+
+    CacheLock(id);
+    Item *it = heads_[id];
+    char* buffer = malloc((size_t)memlimit);
+    if (buffer == 0) {
+        return NULL;
+    }
+    unsigned int bufcurr = 0, shown = 0;
+
+    while (it != NULL && (limit == 0 || shown < limit)) {
+        char key_temp[KEY_MAX_LENGTH + 1];
+        char temp[512];
+        assert(it->nkey <= KEY_MAX_LENGTH);
+        if (it->nbytes == 0 && it->nkey == 0) {
+            it = it->next;
+            continue;
+        }
+        /*
+         * Copy the key since it may not be null-terminated in the struct
+         */
+        strncpy(key_temp, ITEM_key(it), it->nkey);
+        key_temp[it->nkey] = 0x00; /* terminate */
+        unsigned int len = snprintf(
+                temp, sizeof(temp), "ITEM %s [%d b; %lu s]\r\n", key_temp, it->nbytes - 2,
+                       (unsigned long)it->exptime + process_started);
+        /*
+         * 6 is END\r\n\0
+         */
+        if (bufcurr + len + 6 > memlimit) {
+            break;
+        }
+        memcpy(buffer + bufcurr, temp, len);
+        bufcurr += len;
+        ++shown;
+        it = it->next;
+    }
+
+    memcpy(buffer + bufcurr, "END\r\n", 6);
+    bufcurr += 5;
+    *bytes = bufcurr;
+    CacheUnlock(i);
+
+    return buffer;
 }
 
 void ItemManager::ItemStats(ADD_STAT add_stats, void *c) {
@@ -835,7 +885,7 @@ int32_t ItemManager::ItemLRUPullTail(
             ++tries;
             continue;
         }
-        uint32_t hv = hash(ITEM_key(search), search->nkey);
+        uint32_t hv = Hash(ITEM_key(search), search->nkey);
         /*
          * Attempt to hash item lock the "search" item. If locked, no
          * other callers can incr the refcount. Also skip ourselves.
@@ -959,6 +1009,14 @@ int32_t ItemManager::ItemLRUPullTail(
     }
 
     return removed;
+}
+
+unsigned int32_t ItemManager::NoExpLRUSize(int32_t slabs_clsid) {
+    int id = CLEAR_LRU(slabs_clsid);
+    CacheLock(id);
+    unsigned int32_t ret = item_sizes_[id];
+    CacheUnlock(id);
+    return ret;
 }
 
 void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {

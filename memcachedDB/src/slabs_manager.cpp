@@ -48,7 +48,7 @@ SlabsManager& SlabsManager::GetInstance() {
 }
 
 bool SlabsManager::Start() {
-    slab_rebalance_signal_ = 0;
+    g_slab_rebalance_signal = 0;
     g_slab_rebal.slab_start = NULL;
     char *env = getenv("MEMCACHED_SLAB_BULK_CHECK");
     if (env != NULL) {

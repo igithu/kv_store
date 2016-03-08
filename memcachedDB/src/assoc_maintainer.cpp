@@ -23,9 +23,12 @@
 #include "global.h"
 #include "util.h"
 
+const int32_t HASHPOWER_DEFAULT = 16;
+
 static ItemManager& im_instance = ItemManager::GetInstance();
 
 AssocMaintainer::AssocMaintainer() :
+    hashpower_(HASHPOWER_DEFAULT),
     primary_hashtable_(NULL),
     old_hashtable_(NULL),
     hash_items_(0),
@@ -73,7 +76,9 @@ void AssocMaintainer::InitAssoc(const int hashpower_init) {
     pthread_mutex_init(&maintenance_lock_, NULL);
 }
 
-Item* AssocMaintainer::AssocFind(const char *key, const size_t nkey, const uint32_t hv) {
+Item* AssocMaintainer::AssocFind(const char *key,
+                                 const size_t nkey,
+                                 const uint32_t hv) {
     Item *it;
     unsigned int oldbucket;
 
@@ -97,12 +102,10 @@ Item* AssocMaintainer::AssocFind(const char *key, const size_t nkey, const uint3
     return ret;
 }
 
-int32_t AssocMaintainer::AssocInsert() {
+int32_t AssocMaintainer::AssocInsert(Item *it, const uint32_t hv) {
     unsigned int oldbucket;
-
     if (expanding_ &&
-        (oldbucket = (hv & hashmask(hashpower_ - 1))) >= expand_bucket_)
-    {
+       (oldbucket = (hv & hashmask(hashpower_ - 1))) >= expand_bucket_) {
         it->h_next = old_hashtable_[oldbucket];
         old_hashtable_[oldbucket] = it;
     } else {
@@ -112,12 +115,10 @@ int32_t AssocMaintainer::AssocInsert() {
 
     pthread_mutex_lock(&hash_items_counter_lock_);
     ++hash_items_;
-    if (!started_expanding_ && !expanding && hash_items_ > (hashsize(hashpower_) * 3) / 2) {
-        started_expanding_ = true;
-        pthread_cond_signal(&maintenance_cond_);
+    if (!expanding_ && hash_items_ > (hashsize(hashpower_) * 3) / 2) {
+        AssocExpand();
     }
     pthread_mutex_unlock(&hash_items_counter_lock_);
-
     return 1;
 
 }
@@ -143,6 +144,14 @@ void AssocMaintainer::AssocDelete(const char *key, const size_t nkey, const uint
        they can't find.
      */
     assert(*before != 0);
+}
+
+void AssocMaintainer::AssocStartExpand() {
+    if (started_expanding_) {
+        return;
+    }
+    started_expanding_ = true;
+    pthread_cond_signal(&maintenance_cond_);
 }
 
 void AssocMaintainer::Run() {
@@ -215,7 +224,10 @@ void AssocMaintainer::Run() {
 }
 
 void AssocMaintainer::StopAssocMaintainer() {
-    pthread_mutex_lock();
+    pthread_mutex_lock(&maintenance_lock_);
+    assoc_running_ = false;
+    pthread_mutex_unlock(&maintenance_lock_);
+    Wait();
 }
 
 void AssocMaintainer::AssocExpand() {

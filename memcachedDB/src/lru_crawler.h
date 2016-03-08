@@ -21,7 +21,7 @@
 #define __ITEM_LRU_CRAWLER_H
 
 
-#define CRAWL_LARGEST_ID 256
+const int32_t CRAWL_LARGEST_ID = 256;
 
 struct Crawler {
     struct _stritem *next;

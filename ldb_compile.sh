@@ -3,7 +3,7 @@
 # make the levelDB lib and copy the include and libs in the current file
 
 BUILD_ROOT=$PWD
-LIB_LDB=$BUILD_ROOT/libldb
+LIB_LDB=$BUILD_ROOT/kv_server/libldb
 LDB_LIB=$LIB_LDB/lib
 LDB_INCLUDE=$LIB_LDB/include
 

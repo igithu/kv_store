@@ -20,7 +20,7 @@
 #ifndef __SLABS_H
 #define __SLABS_H
 
-#define MAX_NUMBER_OF_SLAB_CLASSES (63 + 1)
+#include <atomic.h>
 
 struct Slab {
     void *slab_start;
@@ -62,7 +62,7 @@ enum MoveStatus {
 };
 
 extern Slab g_slab_rebal;
-extern volatile int g_slab_rebalance_signal;
+extern volatile std::atomic<int> g_slab_rebalance_signal;
 
 
 class SlabsMaintainer;
@@ -189,7 +189,6 @@ class SlabsManager {
     protected:
         pthread_mutex_t slabs_rebalance_lock_;
         pthread_cond_t slab_rebalance_cond_;
-        volatile int slab_rebalance_signal_;
 
 };
 

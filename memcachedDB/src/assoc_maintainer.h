@@ -23,14 +23,8 @@
 
 #include "item_manager.h"
 
-
-/* Initial power multiplier for the hash table */
-#define HASHPOWER_DEFAULT 16
-
 #define hashsize(n) ((ub4)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
-
-extern unsigned int hashpower;
 
 typedef  unsigned long  int  ub4;   /* unsigned 4-byte quantities */
 typedef  unsigned       char ub1;   /* unsigned 1-byte quantities */
@@ -47,16 +41,16 @@ class AssocMaintainer : public Thread {
         AssocMaintainer();
         ~AssocMaintainer();
 
-        void InitAssoc(const int hashpower_init);
+        void InitAssoc(const int hashpower_init = 0);
         Item* AssocFind(const char *key, const size_t nkey, const uint32_t hv);
         int32_t AssocInsert(Item *it, const uint32_t hv);
         void AssocDelete(const char *key, const size_t nkey, const uint32_t hv);
+        void AssocStartExpand();
 
         /*
          * run the AssocMaintainer thread
          */
         virtual void Run();
-
         void StopAssocMaintainer();
 
     private:

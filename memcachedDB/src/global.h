@@ -22,7 +22,8 @@
 
 #include <pthread.h>
 
-typedef unsigned int rel_time_t;
+// typedef unsigned int rel_time_t;
+
 
 /**
  * Global stats.
