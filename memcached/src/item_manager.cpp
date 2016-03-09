@@ -94,11 +94,9 @@ ItemManager& ItemManager::GetInstance() {
 }
 
 bool ItemManager::Start() {
-    if (!am_instance.Start()) {
+    if (!am_instance.IsAlive()) {
         return false;
     }
-    // ?
-    sm_instance.InitSlabs(g_settings.maxbytes, g_settings.factor, true);
     return false;
 }
 
