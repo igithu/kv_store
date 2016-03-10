@@ -120,6 +120,9 @@
 #define APPEND_NUM_STAT(num, name, fmt, val) \
     APPEND_NUM_FMT_STAT("%d:%s", num, name, fmt, val)
 
+
+namespace mdb {
+
 /**
  * Callback for any function producing stats.
  *
@@ -375,7 +378,7 @@ class ItemManager {
 };
 
 
-
+}  // end of namespace mdb
 
 
 #endif // __ITEM_MAINTAINER_H

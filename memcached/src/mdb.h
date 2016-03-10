@@ -29,6 +29,7 @@
 #include "slabs_rebalancer.h"
 #include "slabs_maintainer.h"
 #include "assoc_maintainer.h"
+#include "disallow_copy_and_assign.h"
 
 
 
@@ -36,16 +37,23 @@ namespace mdb {
 
 class MDB {
     public:
-        MDB();
         ~MDB();
 
         bool InitDB();
         bool StartMDB();
         bool StopMDB();
+        void WaitForThreads();
+
+        static MDB& GetInstance();
 
         bool Put(const char* key, const char* value);
         bool Get(const char* key, std::string& value);
         bool Delete(const char* key);
+
+    private:
+        MDB();
+
+        DISALLOW_COPY_AND_ASSIGN(MDB);
 
     private:
         ItemManager& item_manager_;

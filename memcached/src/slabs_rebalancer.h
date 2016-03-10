@@ -25,19 +25,30 @@
 #include <atomic.h>
 
 #include "thread.h"
+#include "disallow_copy_and_assign.h"
 
-class SlabsRebalancer : public Thread {
+
+namespace mdb {
+
+class SlabsRebalancer : public PUBLIC_UTIL::Thread {
     public:
-        SlabsRebalancer();
         ~SlabsRebalancer();
+
+        static SlabsRebalancer& GetInstance();
 
         virtual void Run();
         void StopSlabsRebalancer();
 
     private:
+        SlabsRebalancer();
+
+        DISALLOW_COPY_AND_ASSIGN(SlabsRebalancer);
+
+    private:
         volatile std::atomic<bool> slabs_rebalancer_running_;
 };
 
+}  // end of namespace mdb
 
 
 #endif // __SLABS_REBALANCER_H

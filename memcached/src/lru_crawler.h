@@ -20,6 +20,7 @@
 #ifndef __ITEM_LRU_CRAWLER_H
 #define __ITEM_LRU_CRAWLER_H
 
+namespace mdb {
 
 const int32_t CRAWL_LARGEST_ID = 256;
 
@@ -106,7 +107,7 @@ class LRUCrawler : public Thread {
 
 };
 
-
+}  // end of namespace mdb
 
 #endif // __ITEM_LRU_CRAWLER_H
 

@@ -18,12 +18,20 @@
 
 #include "slabs_manager.h"
 
+
+namespace mdb {
+
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
 
 SlabsRebalancer::SlabsRebalancer() : slabs_rebalancer_running_(false) {
 }
 
 SlabsRebalancer::~SlabsRebalancer() {
+}
+
+SlabsRebalancer& SlabsRebalancer::GetInstance() {
+    static SlabsRebalancer sr_instance;
+    return sr_instance;
 }
 
 /*
@@ -71,7 +79,7 @@ void SlabsRebalancer::StopSlabsRebalancer() {
     slabs_rebalancer_running_ = false;
 }
 
-
+// end of namespace mdb
 
 
 

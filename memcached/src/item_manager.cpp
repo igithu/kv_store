@@ -24,6 +24,7 @@
 #include "hash.h"
 #include "util.h"
 
+namespace mdb {
 
 static AssocMaintainer& am_instance = AssocMaintainer::GetInstance();
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
@@ -1060,7 +1061,7 @@ void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
 }
 
 
-
+}  // end of namespace mdb
 
 
 

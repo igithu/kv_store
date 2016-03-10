@@ -18,6 +18,7 @@
 
 #include "slabs_manager.h"
 
+namespace mdb {
 
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
 
@@ -25,6 +26,11 @@ SlabsMaintainer::SlabsMaintainer() : slabs_maintainer_running_(true) {
 }
 
 SlabsMaintainer::~SlabsMaintainer() {
+}
+
+SlabsMaintainer& SlabsMaintainer::GetInstance() {
+    static SlabsMaintainer instance;
+    return instance;
 }
 
 /*
@@ -58,7 +64,7 @@ void SlabsMaintainer::StopSlabsMaintainer() {
 }
 
 
-
+}  // end of namespace mdb
 
 
 

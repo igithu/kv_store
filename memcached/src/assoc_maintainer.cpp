@@ -23,6 +23,9 @@
 #include "global.h"
 #include "util.h"
 
+
+namespace mdb {
+
 const int32_t HASHPOWER_DEFAULT = 16;
 
 static ItemManager& im_instance = ItemManager::GetInstance();
@@ -291,7 +294,7 @@ void AssocMaintainer::PauseThreads(enum PauseThreadTypes type) {
 
 }
 
-
+}  // end of namespace mdb
 
 
 

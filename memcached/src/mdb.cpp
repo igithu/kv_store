@@ -93,19 +93,62 @@ bool MDB::InitDB() {
     g_stats.lru_crawler_running = false;
     g_stats.lru_crawler_starts = 0;
 
-    
+    lru_crawler_.InitLRUCrawler();
+    lru_maintainer_.InitLRUMaintainer();
+    assoc_maintainer_.InitAssoc(g_settings.hashpower_init);
+    slabs_manager_.InitSlabs(g_settings.maxbytes, g_settings.factor, true);
 
     return true;
 }
 
 bool MDB::StartMDB() {
     if (!assoc_maintainer_.Start()) {
+        fprintf(stderr, "Start the assoc_maintainer thread failed!\n");
         return false;
     }
+    if (g_settings.lru_crawler && !lru_crawler_.Start()) {
+        fprintf(stderr, "Failed to enable LRU crawler thread\n");
+        return false;
+    }
+    if (g_settings.lru_maintainer_thread && !lru_maintainer_.Start()) {
+        fprintf(stderr, "Failed to enable LRU maintainer thread\n");
+        return false;
+    }
+    if (g_settings.slab_reassign && !slabs_maintainer_.Start() && !slabs_rebalancer_.Start()) {
+        fprintf(stderr,"start slabs thread failed!\n");
+        return false;
+    }
+
+    ItemManager::ClockHandler(0, 0, 0);
     return true;
 }
+
 bool MDB::StopMDB() {
+    assoc_maintainer_.Stop();
+    lru_crawler_.Stop();
+    lru_maintainer_.Stop();
+    slabs_maintainer_.Stop();
+    slabs_rebalancer_.Stop();
+
+    assoc_maintainer_.Wait();
+    lru_crawler_.Wait();
+    lru_maintainer_.Wait();
+    slabs_maintainer_.Wait();
+    slabs_rebalancer_.Wait();
     return true;
+}
+
+void MDB::WaitForThreads() {
+    assoc_maintainer_.Wait();
+    lru_crawler_.Wait();
+    lru_maintainer_.Wait();
+    slabs_maintainer_.Wait();
+    slabs_rebalancer_.Wait();
+}
+
+MDB& MDB::GetInstance() {
+    static MDB mdb_instance;
+    return mdb_instance;
 }
 
 bool MDB::Put(const char* key, const char* value) {

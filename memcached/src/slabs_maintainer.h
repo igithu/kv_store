@@ -24,20 +24,30 @@
 
 #include <atomic.h>
 
+#include "disallow_copy_and_assign.h"
+
+
+namespace mdb {
+
 class SlabsMaintainer : public Thread {
     public:
-        SlabsMaintainer();
         ~SlabsMaintainer();
 
         virtual void Run();
+        static SlabsMaintainer& GetInstance();
 
         void StopSlabsMaintainer();
+
+    private:
+        SlabsMaintainer();
+
+        DISALLOW_COPY_AND_ASSIGN(SlabsMaintainer);
 
     private:
         volatile std::atomic<bool> slabs_maintainer_running_;
 };
 
-
+}  // end of namespace mdb
 
 #endif // __SLABS_MAINTAINER_H
 

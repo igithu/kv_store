@@ -20,6 +20,9 @@
 #include "slabs_manager.h"
 #include "util.h"
 
+
+namespace mdb {
+
 const int MAX_LRU_MAINTAINER_SLEEP = 1000000;
 const int  MIN_LRU_MAINTAINER_SLEEP = 1000;
 
@@ -156,7 +159,7 @@ void LRUMaintainer::ResumeLRU() {
 }
 
 
-
+}  // end of namespace mdb
 
 
 

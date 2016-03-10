@@ -20,6 +20,9 @@
 #ifndef __LRU_MAINTAINER_H
 #define __LRU_MAINTAINER_H
 
+
+namespace mdb {
+
 enum LRUStatus {
     HOT_LRU = 0,
     WARM_LRU = 64,
@@ -56,14 +59,9 @@ class LRUMaintainer : public Thread {
 
         pthread_mutex_t lru_maintainer_lock_;
 
-
-
 };
 
-
-
-
-
+}  // end of namespace mdb
 
 
 

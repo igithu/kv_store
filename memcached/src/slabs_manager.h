@@ -22,6 +22,8 @@
 
 #include <atomic.h>
 
+#include "disallow_copy_and_assign.h"
+
 struct Slab {
     void *slab_start;
     void *slab_end;
