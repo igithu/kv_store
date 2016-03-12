@@ -48,6 +48,7 @@ class MDB {
 
         bool Put(const char* key, const char* value);
         bool Get(const char* key, std::string& value);
+        bool MultiGet(vector<std::string> key_list, std::string& value);
         bool Delete(const char* key);
 
     private:

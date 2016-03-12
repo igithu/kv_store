@@ -19,6 +19,8 @@
 
 namespace mdb {
 
+using std::string;
+
 MDB::MDB() :
     item_manager_(ItemManager::GetInstance()),
     slabs_manager_(SlabsManager::GetInstance()),
@@ -155,6 +157,19 @@ bool MDB::Put(const char* key, const char* value) {
 }
 
 bool MDB::Get(const char* key, std::string& value) {
+    int32_t key_len = strlen(key);
+    Item* it = item_manager_.ItemGet(key, key_len);
+    if (NULL == it) {
+        return  false;
+    }
+    char* data = ITEM_data(it);
+    char* val = (char*)malloc(sizeof(char) * strlen(data));;
+    value = val;
+    item_manager_.ItemUpdate(it);
+    return true;
+}
+
+bool MDB::MultiGet(vector<string> key_list, string& value) {
 }
 
 bool MDB::Delete(const char* key) {
