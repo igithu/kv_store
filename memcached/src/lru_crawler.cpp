@@ -75,7 +75,7 @@ void LRUCrawler::Run() {
                     im_instance.ItemUnlinkQ((Item *)&crawlers_[i]);
                     im_instance.CacheUnlock(i)
                     pthread_mutex_lock(&lru_crawler_stats_lock_);
-                    crawler_stats_[CLEAR_LRU(i)].end_time = im_instance.GetCurrentTime();
+                    crawler_stats_[CLEAR_LRU(i)].end_time = g_current_time;
                     crawler_stats_[CLEAR_LRU(i)].run_complete = true;
                     pthread_mutex_unlock(&lru_crawler_stats_lock_);
                     continue;
@@ -254,7 +254,7 @@ int LRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
         StatsUnlock();
         pthread_mutex_lock(&lru_crawler_stats_lock_);
         memset(&crawler_stats_[id], 0, sizeof(CrawlerStats));
-        crawler_stats_[id].start_time = im_instance.GetCurrentTime();
+        crawler_stats_[id].start_time = g_current_time;
         pthread_mutex_unlock(&lru_crawler_stats_lock_);
     }
     return starts;
@@ -271,7 +271,7 @@ void LRUCrawler::ItemCrawlerEvaluate(Item *search, uint32_t hv, int i) {
     } else {
         s->seen++;
         RefcountIncr(&search->refcount);
-        rel_time_t interval_time = search->exptime - im_instance.GetCurrentTime();
+        rel_time_t interval_time = search->exptime - g_current_time;
         if (search->exptime == 0) {
             s->noexp++;
         } else if (interval_time > 3599) {

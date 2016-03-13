@@ -18,6 +18,7 @@
 
 #include "item_manager.h"
 #include "slabs_manager.h"
+#include "global.h"
 #include "util.h"
 
 
@@ -80,7 +81,7 @@ void LRUMaintainer::Run() {
                 to_sleep = MIN_LRU_MAINTAINER_SLEEP;
         }
         /* Once per second at most */
-        rel_time_t ct = im_instance.GetCurrentTime()
+        rel_time_t ct = g_current_time;
         if (g_settings.lru_crawler && last_crawler_check != ct) {
             lru_maintainer_crawler_check();
             last_crawler_check = ct;

@@ -35,6 +35,9 @@
 
 namespace mdb {
 
+const int32_t KEY_MAX_LENGTH = 250;
+const int32_t REALTIME_MAXDELTA  = 60*60*24*30;
+
 class MDB {
     public:
         ~MDB();
@@ -53,6 +56,8 @@ class MDB {
 
     private:
         MDB();
+
+        rel_time_t RealTime(const time_t exptime);
 
         DISALLOW_COPY_AND_ASSIGN(MDB);
 

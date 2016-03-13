@@ -225,7 +225,7 @@ bool ItemManager::ItemSizeOk(const size_t nkey, const int flags, const int nbyte
 int  ItemManager::DoItemLink(Item *it, const uint32_t hv) {
     assert((it->it_flags & (ITEM_LINKED | ITEM_SLABBED)) == 0);
     it->it_flags |= ITEM_LINKED;
-    it->time = current_time_;
+    it->time = g_current_time;
 
     StatsLock();
     g_stats.curr_bytes += ITEM_ntotal(it);
@@ -280,7 +280,7 @@ void ItemManager::DoItemUpdate(Item *it) {
     if ((it->it_flags & ITEM_LINKED) == 0) {
         return
     }
-    it->time = current_time_;
+    it->time = g_current_time;
     if (!g_settings.lru_maintainer_thread) {
         ItemUnlinkQ(it);
         ItemLinkQ(it);
@@ -288,14 +288,14 @@ void ItemManager::DoItemUpdate(Item *it) {
 }
 
 void ItemManager::DoItemUpdateNolock(Item *it) {
-    if (it->time >= current_time_ - ITEM_UPDATE_INTERVAL) {
+    if (it->time >= g_current_time - ITEM_UPDATE_INTERVAL) {
         return;
     }
     assert((it->it_flags & ITEM_SLABBED) == 0);
 
     if ((it->it_flags & ITEM_LINKED) != 0) {
         DoItemUnlinkQ(it);
-        it->time = current_time_;
+        it->time = g_current_time;
         DoItemLinkQ(it);
     }
 }
@@ -492,7 +492,7 @@ Item *ItemManager::DoItemGet(const char *key, const size_t nkey, const uint32_t 
             if (was_found) {
                 fprintf(stderr, " -nuked by flush");
             }
-        } else if (it->exptime != 0 && it->exptime <= current_time_) {
+        } else if (it->exptime != 0 && it->exptime <= g_current_time) {
             DoItemUnlink(it, hv);
             DoItemRemove(it);
             it = NULL;
@@ -562,7 +562,7 @@ char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned 
         key_temp[it->nkey] = 0x00; /* terminate */
         unsigned int len = snprintf(
                 temp, sizeof(temp), "ITEM %s [%d b; %lu s]\r\n", key_temp, it->nbytes - 2,
-                       (unsigned long)it->exptime + process_started);
+                       (unsigned long)it->exptime + g_process_started);
         /*
          * 6 is END\r\n\0
          */
@@ -695,7 +695,7 @@ void ItemManager::CacheUnlock(int32_t lock_id) {
 bool ItemManager::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index) {
     ++item_stats_[is_index].crawler_items_checked;
     if ((eval_item->exptime != 0 &&
-         eval_item->exptime < current_time_)
+         eval_item->exptime < g_current_time)
         || IsFlushed(eval_item)) {
         item_stats_[is_index].crawler_reclaimed++;
         if (g_settings.verbose > 1) {
@@ -818,15 +818,11 @@ enum StoreItemType ItemManager::StoreItem(Item *item, NreadOpType op) {
     return ret;
 }
 
-rel_time_t ItemManager::GetCurrentTime() {
-    return current_time_;
-}
-
 bool ItemManager::IsFlushed(Item* it) {
     rel_time_t oldest_live = g_settings.oldest_live;
     uint64_t cas = ITEM_get_cas(it);
     uint64_t oldest_cas = g_settings.oldest_cas;
-    if (0 == oldest_live || oldest_live > current_time_) {
+    if (0 == oldest_live || oldest_live > g_current_time) {
         return false;
     }
     if ((it->time <= oldest_live) ||
@@ -906,7 +902,7 @@ int32_t ItemManager::ItemLRUPullTail(
              * WARNING: This can cause terrible corruption
              */
             if (g_settings.tail_repair_time &&
-                search->time + g_settings.tail_repair_time < current_time_) {
+                search->time + g_settings.tail_repair_time < g_current_time) {
                 cur_itemstats.tailrepairs++;
                 search->refcount = 1;
                 /*
@@ -921,7 +917,7 @@ int32_t ItemManager::ItemLRUPullTail(
         /*
          * Expired or flushed
          */
-        if ((search->exptime != 0 && search->exptime < current_time_) || IsFlushed(search)) {
+        if ((search->exptime != 0 && search->exptime < g_current_time) || IsFlushed(search)) {
             cur_itemstats.reclaimed++;
             if ((search->it_flags & ITEM_FETCHED) == 0) {
                 cur_itemstats.expired_unfetched++;
@@ -975,7 +971,7 @@ int32_t ItemManager::ItemLRUPullTail(
                         break;
                     }
                     cur_itemstats.evicted++;
-                    cur_itemstats.evicted_time = current_time_ - search->time;
+                    cur_itemstats.evicted_time = g_current_time - search->time;
                     if (search->exptime != 0) {
                         cur_itemstats.evicted_nonzero++;
                     }
@@ -1048,16 +1044,15 @@ void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
         struct timespec ts;
         if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
             return;
-        current_time = (rel_time_t) (ts.tv_sec - monotonic_start);
+        g_current_time = (rel_time_t) (ts.tv_sec - monotonic_start);
         return;
     }
 #endif
     {
         struct timeval tv;
         gettimeofday(&tv, NULL);
-        current_time = (rel_time_t) (tv.tv_sec - process_started);
+        g_current_time = (rel_time_t) (tv.tv_sec - g_process_started);
     }
-    ItemManager::GetInstance().current_time_ = current_time;
 }
 
 

@@ -333,8 +333,6 @@ class ItemManager {
          */
         enum StoreItemType StoreItem(Item *item, NreadOpType op);
 
-        rel_time_t GetCurrentTime();
-
         bool IsFlushed(Item* it);
         size_t ItemMakeHeader(
                 const uint8_t nkey,

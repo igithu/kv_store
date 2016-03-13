@@ -17,6 +17,8 @@
 
 #include "mdb.h"
 
+#include "global.h"
+
 namespace mdb {
 
 using std::string;
@@ -154,12 +156,27 @@ MDB& MDB::GetInstance() {
 }
 
 bool MDB::Put(const char* key, const char* value) {
+    int32_t klen = strlen(key);
+    int32_t vlen = strlen(value) + 2;
+    /*
+     * TODO exptime should set by config
+     *      for now, set exptime fixed
+     */
+    exptime = REALTIME_MAXDELTA + 1;
+    if (klen > KEY_MAX_LENGTH || vlen < 0 || valen - 2 < 0) {
+        return false;
+    }
+
+    Item* it = item_manager_.ItemAlloc(key, klen, 0, realtime(exptime), vlen);
+    if (NULL == it) {
+        return false;
+    }
 }
 
 bool MDB::Get(const char* key, std::string& value) {
-    int32_t key_len = strlen(key);
-    Item* it = item_manager_.ItemGet(key, key_len);
-    if (NULL == it) {
+    int32_t klen = strlen(key);
+    Item* it = item_manager_.ItemGet(key, klen);
+    if (NULL == it || klen > KEY_MAX_LENGTH) {
         return  false;
     }
     char* data = ITEM_data(it);
@@ -173,8 +190,49 @@ bool MDB::MultiGet(vector<string> key_list, string& value) {
 }
 
 bool MDB::Delete(const char* key) {
+    int32_t klen = strlen(key);
+    Item* it = item_manager_.ItemGet(key, klen);
+    if (NULL == it || klen > KEY_MAX_LENGTH) {
+        return  false;
+    }
+
+    item_manager_.ItemUnlink(it);
+    item_manager_.ItemRemove(it);
+    return true;
 }
 
+
+/*
+ * given time value that's either unix time or delta from current unix time, return
+ * unix time. Use the fact that delta can't exceed one month (and real time value can't
+ * be that low).
+ */
+rel_time_t RealTime(const time_t exptime) {
+    /*
+     * no. of seconds in 30 days - largest possible delta exptime
+     */
+    if (0 == exptime) {
+        /* 0 means never expire */
+        return 0;
+    }
+
+    if (exptime > REALTIME_MAXDELTA) {
+        /*
+         * if item expiration is at/before the server started, give it an
+         * expiration time of 1 second after the server started.
+         * (because 0 means don't expire).  without this, we'd
+         * underflow and wrap around to some large value way in the
+         * future, effectively making items expiring in the past
+         * really expiring never
+         */
+        if (exptime <= g_process_started) {
+            return (rel_time_t)1;
+        }
+        return (rel_time_t)(exptime - g_process_started);
+    } else {
+        return (rel_time_t)(exptime + g_current_time);
+    }
+}
 
 
 

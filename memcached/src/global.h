@@ -21,8 +21,9 @@
 #define __GLOBAL_H
 
 #include <pthread.h>
+#include <atomic.h>
 
-// typedef unsigned int rel_time_t;
+typedef unsigned int rel_time_t;
 
 
 /**
@@ -112,7 +113,8 @@ struct Settings {
 
 extern Stats g_stats;
 extern Settings g_settings;
-
+extern volatile std::atomic<rel_time_t> g_current_time;
+extern volatile std::atomic<time_t> g_process_started = time(0) - 60 - 2;
 
 
 

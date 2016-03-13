@@ -19,6 +19,7 @@
 #include "item_manager.h"
 #include "slabs_maintainer.h"
 #include "slabs_rebalancer.h"
+#include "global.h"
 #include "util.h"
 
 static ItemManager& im_instance = ItemManager::GetInstance();
@@ -420,7 +421,7 @@ int SlabsManager::SlabsReassignPickany(int dst) {
 
 int SlabsManager::SlabAutomoveDecision(int *src, int *dst) {
     static rel_time_t next_run = 0;
-    rel_time_t current_time = im_instance.GetCurrentTime();
+    rel_time_t current_time = g_current_time;
     /*
      * Run less frequently than the slabmove tester.
      */
