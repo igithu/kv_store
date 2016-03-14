@@ -18,6 +18,7 @@
 #include "mdb.h"
 
 #include "global.h"
+#include "hash.h"
 
 namespace mdb {
 
@@ -101,6 +102,8 @@ bool MDB::InitDB() {
     lru_maintainer_.InitLRUMaintainer();
     assoc_maintainer_.InitAssoc(g_settings.hashpower_init);
     slabs_manager_.InitSlabs(g_settings.maxbytes, g_settings.factor, true);
+
+    InitHash(MURMUR3_HASH);
 
     return true;
 }

@@ -23,7 +23,9 @@
 
 namespace kv_store {
 
-KVServer::KVServer() : kv_store_ptr_(NULL) {
+KVServer::KVServer() :
+    kv_store_ptr_(NULL),
+    rdb_opening_(false) {
 }
 
 KVServer::~KVServer() {

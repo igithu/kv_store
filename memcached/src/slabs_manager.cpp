@@ -94,7 +94,7 @@ void SlabsManager::InitSlabs(const size_t limit, const double factor, const bool
     if (prealloc) {
         /* Allocate everything in a big chunk with malloc */
         mem_base_ = malloc(mem_limit_);
-        if (NULL != mem_base) {
+        if (NULL != mem_base_) {
             mem_current_ = mem_base_;
             mem_avail_ = mem_limit_;
         } else {
@@ -214,13 +214,13 @@ int SlabsManager::NewSlab(const unsigned int id) {
 
 void *SlabsManager::MemoryAllocator(size_t size) {
     void *ret;
-    if (mem_base == NULL) {
+    if (NULL == mem_base_) {
         /*
          * We are not using a preallocated large memory chunk
          */
         ret = malloc(size);
     } else {
-        ret = mem_current;
+        ret = mem_current_;
 
         if (size > mem_avail_) {
             return NULL;
@@ -234,10 +234,10 @@ void *SlabsManager::MemoryAllocator(size_t size) {
         }
 
         mem_current_ = ((char*)mem_current_) + size;
-        if (size < mem_avail) {
-            mem_avail -= size;
+        if (size < mem_avail_) {
+            mem_avail_ -= size;
         } else {
-            mem_avail = 0;
+            mem_avail_ = 0;
         }
     }
 

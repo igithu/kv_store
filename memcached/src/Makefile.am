@@ -10,32 +10,36 @@ AM_LDFLAGS = -lz -lstdc++
 
 # LDADD = ${third_dir}/gperftools/lib/libtcmalloc_minimal.a
 
-MDB_SRC = ${mdb_dir}/memcached_db.h \
-		  ${mdb_dir}/memcached_db.cpp \
-		  ${mdb_dir}/items_access.h \
-		  ${mdb_dir}/items_access.cpp \
-		  ${mdb_dir}/items.h \
-		  ${mdb_dir}/items.cpp \
-		  ${mdb_dir}/assoc.h \
-		  ${mdb_dir}/assoc.c \
-		  ${mdb_dir}/slabs.h \
-		  ${mdb_dir}/slabs.c \
+MDB_SRC = ${mdb_dir}/mdb.h \
+		  ${mdb_dir}/mdb.cpp \
+		  ${mdb_dir}/item_manager.h \
+		  ${mdb_dir}/item_manager.cpp \
+		  ${mdb_dir}/lru_crawler.h \
+		  ${mdb_dir}/lru_crawler.cpp \
+		  ${mdb_dir}/lru_maintainer.h \
+		  ${mdb_dir}/lru_maintainer.cpp \
+		  ${mdb_dir}/slabs_manager.h \
+		  ${mdb_dir}/slabs_manager.cpp \
+		  ${mdb_dir}/slabs_maintainer.h \
+		  ${mdb_dir}/slabs_maintainer.cpp \
+		  ${mdb_dir}/slabs_rebalancer.h \
+		  ${mdb_dir}/slabs_rebalancer.cpp \
+		  ${mdb_dir}/assoc_maintainer.h \
+		  ${mdb_dir}/assoc_maintainer.cpp \
 		  ${mdb_dir}/hash.h \
-		  ${mdb_dir}/hash.c \
+		  ${mdb_dir}/hash.cpp \
 		  ${mdb_dir}/murmur3_hash.h \
 		  ${mdb_dir}/murmur3_hash.c \
-		  ${mdb_dir}/jenkins_hash.h \
-		  ${mdb_dir}/jenkins_hash.c \
-		  ${mdb_dir}/stats.h \
-		  ${mdb_dir}/stats.c \
 		  ${mdb_dir}/util.h \
-		  ${mdb_dir}/util.c \
-		  ${mdb_dir}/protocol_binary.h \
-		  ${mdb_dir}/trace.h
+		  ${mdb_dir}/util.cpp \
+		  ${mdb_dir}/global.h \
+		  ${mdb_dir}/disallow_copy_and_assign.h \
+		  ${mdb_dir}/thread.h \
+		  ${mdb_dir}/global.h
 
 
-noinst_LIBRARIES = libmemcache_db.a
+noinst_LIBRARIES = libmemcached.a
 
-libmemcache_db_a_SOURCES = ${MDB_SRC}
+libmemcached_a_SOURCES = ${MDB_SRC}
 
 #SUBDIRS = test

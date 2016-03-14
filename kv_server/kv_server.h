@@ -37,6 +37,8 @@ class KVServer {
 
     private:
         KVStore* kv_store_ptr_;
+
+        bool rdb_opening_;
 };
 
 }  // end of namespace kv_store
