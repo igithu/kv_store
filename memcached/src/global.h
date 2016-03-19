@@ -21,7 +21,7 @@
 #define __GLOBAL_H
 
 #include <pthread.h>
-#include <atomic.h>
+#include <atomic>
 
 typedef unsigned int rel_time_t;
 

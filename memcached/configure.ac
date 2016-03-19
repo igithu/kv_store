@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([memcacheDB], [0.0.2], [asy5178@163.com])
+AC_INIT([memcached], [0.0.2], [asy5178@163.com])
 
 # Checks for programs.
 AC_PROG_INSTALL
@@ -36,6 +36,8 @@ AC_TYPE_UINT8_T
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([memmove memset strchr strerror strtol strtoul strtoull])
+
+CXXFLAGS=-std=c++11
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile])

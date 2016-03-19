@@ -9,7 +9,7 @@ BUILD_ROOT=$PWD
 
 SRC_ROOT=$BUILD_ROOT/src
 
-SERVER_PATH=$BUILD_ROOT/memcache_db
+SERVER_PATH=$BUILD_ROOT/libmemcached
 
 echo $BUILD_ROOT
 

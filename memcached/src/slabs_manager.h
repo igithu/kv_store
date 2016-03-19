@@ -20,7 +20,7 @@
 #ifndef __SLABS_H
 #define __SLABS_H
 
-#include <atomic.h>
+#include <atomic>
 
 #include "disallow_copy_and_assign.h"
 

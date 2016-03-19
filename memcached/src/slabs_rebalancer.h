@@ -22,7 +22,7 @@
 
 #include <pthread.h>
 
-#include <atomic.h>
+#include <atomic>
 
 #include "thread.h"
 #include "disallow_copy_and_assign.h"

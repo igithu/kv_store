@@ -1,17 +1,17 @@
 /***************************************************************************
- * 
+ *
  * Copyright (c) 2014 aishuyu.com, Inc. All Rights Reserved
- * 
+ *
  **************************************************************************/
- 
- 
- 
+
+
+
 /**
  * @file thread.h
  * @author aishuyu(asy5178@163.com)
  * @date 2014/10/30 21:39:40
- * @brief 
- *  
+ * @brief
+ *
  **/
 
 
@@ -45,8 +45,7 @@ class Thread {
             int ret = pthread_create(&tid_, NULL, hook, this);
             if (0 != ret) {
                 running_ = false;
-                fprintf("create the thread failed! tid is %lu,
-                        pthread_creat ret code is %d.\n", tid_, ret);
+                fprintf("create the thread failed! tid is %lu, pthread_create ret code is %d.\n", tid_, ret);
                 return false;
             }
             return true;

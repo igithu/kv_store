@@ -19,7 +19,7 @@
 #ifndef __ITEM_MAINTAINER_H
 #define __ITEM_MAINTAINER_H
 
-#include <atomic.h>
+#include <atomic>
 
 #include<ev.h>
 
@@ -139,7 +139,7 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
 /*
  * Time relative to server start. Smaller than time_t on 64-bit systems.
  */
-typedef unsigned std::atomic<int> rel_time_t;
+typedef std::atomic<unsigned int> rel_time_t;
 
 enum Protocol {
     ascii_prot = 3, /* arbitrary value. */
@@ -157,6 +157,13 @@ enum StoreItemType {
 
 enum NreadOpType {
     NREAD_ADD = 1, NREAD_SET, NREAD_REPLACE, NREAD_APPEND, NREAD_PREPEND, NREAD_CAS
+};
+
+enum LRUStatus {
+    HOT_LRU = 0,
+    WARM_LRU = 64,
+    COLD_LRU = 128,
+    NOEXP_LRU = 192
 };
 
 /*
