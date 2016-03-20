@@ -29,7 +29,7 @@
 
 namespace mdb {
 
-class SlabsMaintainer : public Thread {
+class SlabsMaintainer : public PUBLIC_UTIL::Thread {
     public:
         ~SlabsMaintainer();
 

@@ -19,6 +19,8 @@
 #ifndef __ITEM_MAINTAINER_H
 #define __ITEM_MAINTAINER_H
 
+#include <stdint.h>
+
 #include <atomic>
 
 #include<ev.h>
@@ -29,11 +31,6 @@
 #if HAVE_UNISTD_H
 # include <unistd.h>
 #endif
-
-/*
- * Maximum length of a key.
- */
-#define KEY_MAX_LENGTH 250
 
 /*
  * Size of an incr buf.
@@ -139,13 +136,8 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
 /*
  * Time relative to server start. Smaller than time_t on 64-bit systems.
  */
-typedef std::atomic<unsigned int> rel_time_t;
+typedef unsigned int rel_time_t;
 
-enum Protocol {
-    ascii_prot = 3, /* arbitrary value. */
-    binary_prot,
-    negotiating_prot /* Discovering the protocol */
-};
 
 enum DeltaResultType {
     OK, NON_NUMERIC, EOM, DELTA_ITEM_NOT_FOUND, DELTA_ITEM_CAS_MISMATCH
@@ -263,47 +255,8 @@ class ItemManager {
         void DoItemLinkQ(Item* it, bool is_crawler = false);
         void DoItemUnlinkQ(Item* it, bool is_crawler = false);
 
-        /*@null@*/
-        /*
-         * This is walking the line of violating lock order, but I think it's safe.
-         * If the LRU lock is held, an item in the LRU cannot be wiped and freed.
-         * The data could possibly be overwritten, but this is only accessing the
-         * headers.
-         * It may not be the best idea to leave it like this, but for now it's safe.
-         * FIXME: only dumps the hot LRU with the new LRU's.
-         */
-        char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
-        void ItemStats(ADD_STAT add_stats, void *c);
-        void ItemStatsTotals(ADD_STAT add_stats, void *c);
-        void ItemStatsSizes(ADD_STAT add_stats, void *c);
 
-        /*
-         * item_sizes_ interface
-         */
-        int32_t GetItemSizeByIndex(int32_t index);
-        void ItemSizeIncrement(int32_t index);
-        void ItemSizeDecrement(int32_t index);
-
-        Item *GetItemHeadByIndex(int32_t index);
-        Item *GetItemTailByIndex(int32_t index);
-        void ItemLinkQ(Item* it);
-        void ItemUnlinkQ(Item* it);
-
-        void CacheLock(int32_t lock_id);
-        void CacheUnlock(int32_t lock_id);
-
-        bool ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index);
-        void ItemStatsEvictions(uint64_t *evicted);
-
-        void Lock(uint32_t hv);
-        void *TryLock(uint32_t hv);
-        void TryLockUnlock(void *arg);
-        void Unlock(uint32_t hv);
-
-    private:
-        ItemManager();
-
-        Item *ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
+        Item *ItemAlloc(const char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
         /*
          * Returns an item if it hasn't been marked as expired,
          * lazy-expiring as needed.
@@ -335,6 +288,47 @@ class ItemManager {
          */
         void ItemUpdate(Item *it);
 
+        /*@null@*/
+        /*
+         * This is walking the line of violating lock order, but I think it's safe.
+         * If the LRU lock is held, an item in the LRU cannot be wiped and freed.
+         * The data could possibly be overwritten, but this is only accessing the
+         * headers.
+         * It may not be the best idea to leave it like this, but for now it's safe.
+         * FIXME: only dumps the hot LRU with the new LRU's.
+         */
+        char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
+        // void ItemStats(ADD_STAT add_stats, void *c);
+        void ItemStatsTotals(ADD_STAT add_stats, void *c);
+        void ItemStatsSizes(ADD_STAT add_stats, void *c);
+
+        /*
+         * item_sizes_ interface
+         */
+        int32_t GetItemSizeByIndex(int32_t index);
+        void ItemSizeIncrement(int32_t index);
+        void ItemSizeDecrement(int32_t index);
+
+        Item *GetItemHeadByIndex(int32_t index);
+        Item *GetItemTailByIndex(int32_t index);
+        void ItemLinkQ(Item* it);
+        void ItemUnlinkQ(Item* it);
+
+        void CacheLock(int32_t lock_id);
+        void CacheUnlock(int32_t lock_id);
+
+        bool ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index);
+        void ItemStatsEvictions(uint64_t *evicted);
+
+        void Lock(uint32_t hv);
+        void *TryLock(uint32_t hv);
+        void TryLockUnlock(void *arg);
+        void Unlock(uint32_t hv);
+
+        static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
+
+    private:
+        ItemManager();
         /*
          * Stores an item in the cache (high level, obeys set/add/replace semantics)
          */
@@ -358,9 +352,7 @@ class ItemManager {
                 const bool do_evict,
                 const uint32_t cur_hv);
 
-
-        unsigned int32_t NoExpLRUSize(int32_t slabs_clsid);
-        static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
+        uint32_t NoExpLRUSize(int32_t slabs_clsid);
 
         DISALLOW_COPY_AND_ASSIGN(ItemManager);
 
@@ -368,11 +360,11 @@ class ItemManager {
         Item **heads_;
         Item **tails_;
 
-        unsigned int *item_sizes_;
+        uint32_t *item_sizes_;
         ItemStats *item_stats_;
         pthread_mutex_t *cache_locks_;
 
-        volatile rel_time_t current_time_;
+        volatile std::atomic<rel_time_t> current_time_;
         static struct ev_loop *time_loop_;
         static ev_timer timer_w_;
 

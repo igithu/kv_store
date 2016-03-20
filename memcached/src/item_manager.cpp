@@ -102,7 +102,7 @@ bool ItemManager::Start() {
 }
 
 Item *ItemManager::DoItemAlloc(
-        char *key,
+        const char *key,
         const size_t nkey,
         const int flags,
         const rel_time_t exptime,
@@ -531,6 +531,64 @@ void ItemManager::ItemUnlinkQ(Item* it) {
     CacheUnlock(it->slabs_clsid):
 }
 
+Item *ItemManager::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
+    /*
+     * do_item_alloc handles its own locks
+     */
+    return DoItemAlloc(key, nkey, flags, exptime, nbytes, 0);
+}
+
+Item *ItemManager::ItemGet(const char *key, const size_t nkey) {
+    uint32_t hv = Hash(key, nkey);
+    Lock(hv);
+    Item* it = DoItemGet(key, nkey, hv);
+    Unlock(hv);
+    return it;
+}
+
+Item *ItemManager::ItemTouch(const char *key, const size_t nkey, uint32_t exptime) {
+    uint32_t hv = Hash(key, nkey);
+    Lock(hv);
+    Item* it = DoItemTouch(key, nkey, exptime, hv);
+    Unlock(hv);
+    return it;
+
+}
+
+int32_t ItemManager::ItemLink(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    int32_t ret = DoItemLink(it, hv);
+    Unlock(hv);
+    return ret;
+}
+
+void ItemManager::ItemRemove(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    int32_t ret = DoItemRemove(it);
+    Unlock(hv);
+    return ret;
+}
+
+int ItemManager::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
+    return DoItemReplace(it, new_it, hv);
+}
+
+void ItemManager::ItemUnlink(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    DoItemUnlink(item, hv);
+    Unlock(hv);
+}
+
+void ItemManager::ItemUpdate(Item *it) {
+    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    Lock(hv);
+    DoItemUpdate(item);
+    Unlock(hv);
+}
+
 char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
     unsigned int32_t memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
     unsigned int id = slabs_clsid;
@@ -583,8 +641,8 @@ char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned 
     return buffer;
 }
 
-void ItemManager::ItemStats(ADD_STAT add_stats, void *c) {
-}
+// void ItemManager::ItemStats(ADD_STAT add_stats, void *c) {
+// }
 
 void ItemManager::ItemStatsTotals(ADD_STAT add_stats, void *c) {
 }
@@ -684,6 +742,8 @@ void ItemManager::DoItemUnlinkQ(Item* it, bool is_crawler) {
     }
 }
 
+
+
 void ItemManager::CacheLock(int32_t lock_id) {
     pthread_mutex_lock(&cache_locks_[lock_id]);
 }
@@ -752,62 +812,45 @@ void ItemManager::Unlock(uint32_t hv) {
     pthread_mutex_unlock(&item_locks_[hv & hashmask(item_lock_hashpower)]);
 }
 
-Item *ItemManager::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
-    /*
-     * do_item_alloc handles its own locks
-     */
-    return DoItemAlloc(key, nkey, flags, exptime, nbytes, 0);
-}
+void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
+    struct timeval t = {.tv_sec = 1, .tv_usec = 0};
+    static bool initialized = false;
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+    static bool monotonic = false;
+    static time_t monotonic_start;
+#endif
 
-Item *ItemManager::ItemGet(const char *key, const size_t nkey) {
-    uint32_t hv = Hash(key, nkey);
-    Lock(hv);
-    Item* it = DoItemGet(key, nkey, hv);
-    Unlock(hv);
-    return it;
-}
+    if (!initialized) {
+        initialized = true;
+        /* process_started is initialized to time() - 2. We initialize to 1 so
+         * flush_all won't underflow during tests. */
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+            monotonic = true;
+            monotonic_start = ts.tv_sec - ITEM_UPDATE_INTERVAL - 2;
+        }
+#endif
+        ev_init(&timer_w_, ItemManager::ClockHandler);
+        ev_timer_set(&timer_w_, 2, 0);
+        ev_timer_start(time_loop, &timer_w_);
+        ev_run(time_loop, 0);
+    }
 
-Item *ItemManager::ItemTouch(const char *key, const size_t nkey, uint32_t exptime) {
-    uint32_t hv = Hash(key, nkey);
-    Lock(hv);
-    Item* it = DoItemTouch(key, nkey, exptime, hv);
-    Unlock(hv);
-    return it;
-
-}
-
-int32_t ItemManager::ItemLink(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
-    Lock(hv);
-    int32_t ret = DoItemLink(it, hv);
-    Unlock(hv);
-    return ret;
-}
-
-void ItemManager::ItemRemove(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
-    Lock(hv);
-    int32_t ret = DoItemRemove(it);
-    Unlock(hv);
-    return ret;
-}
-
-int ItemManager::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
-    return DoItemReplace(it, new_it, hv);
-}
-
-void ItemManager::ItemUnlink(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
-    Lock(hv);
-    DoItemUnlink(item, hv);
-    Unlock(hv);
-}
-
-void ItemManager::ItemUpdate(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
-    Lock(hv);
-    DoItemUpdate(item);
-    Unlock(hv);
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+    if (monotonic) {
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
+            return;
+        g_current_time = (rel_time_t) (ts.tv_sec - monotonic_start);
+        return;
+    }
+#endif
+    {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        g_current_time = (rel_time_t) (tv.tv_sec - g_process_started);
+    }
 }
 
 enum StoreItemType ItemManager::StoreItem(Item *item, NreadOpType op) {
@@ -1006,55 +1049,13 @@ int32_t ItemManager::ItemLRUPullTail(
     return removed;
 }
 
-unsigned int32_t ItemManager::NoExpLRUSize(int32_t slabs_clsid) {
+uint32_t ItemManager::NoExpLRUSize(int32_t slabs_clsid) {
     int id = CLEAR_LRU(slabs_clsid);
     CacheLock(id);
     unsigned int32_t ret = item_sizes_[id];
     CacheUnlock(id);
     return ret;
 }
-
-void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
-    struct timeval t = {.tv_sec = 1, .tv_usec = 0};
-    static bool initialized = false;
-#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
-    static bool monotonic = false;
-    static time_t monotonic_start;
-#endif
-
-    if (!initialized) {
-        initialized = true;
-        /* process_started is initialized to time() - 2. We initialize to 1 so
-         * flush_all won't underflow during tests. */
-#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
-        struct timespec ts;
-        if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-            monotonic = true;
-            monotonic_start = ts.tv_sec - ITEM_UPDATE_INTERVAL - 2;
-        }
-#endif
-        ev_init(&timer_w_, ItemManager::ClockHandler);
-        ev_timer_set(&timer_w_, 2, 0);
-        ev_timer_start(time_loop, &timer_w_);
-        ev_run(time_loop, 0);
-    }
-
-#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
-    if (monotonic) {
-        struct timespec ts;
-        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
-            return;
-        g_current_time = (rel_time_t) (ts.tv_sec - monotonic_start);
-        return;
-    }
-#endif
-    {
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        g_current_time = (rel_time_t) (tv.tv_sec - g_process_started);
-    }
-}
-
 
 }  // end of namespace mdb
 

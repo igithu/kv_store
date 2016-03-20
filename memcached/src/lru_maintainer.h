@@ -20,11 +20,13 @@
 #ifndef __LRU_MAINTAINER_H
 #define __LRU_MAINTAINER_H
 
+#include "thread.h"
+
 
 namespace mdb {
 
 
-class LRUMaintainer : public Thread {
+class LRUMaintainer : public PUBLIC_UTIL::Thread {
     public:
         ~LRUMaintainer();
 

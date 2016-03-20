@@ -23,6 +23,9 @@
 #include <atomic>
 
 #include "disallow_copy_and_assign.h"
+#include "item_manager.h"
+
+namespace mdb {
 
 struct Slab {
     void *slab_start;
@@ -133,7 +136,6 @@ class SlabsManager {
 
         int NewSlab(const unsigned int id);
         void *MemoryAllocator(size_t size);
-        void FreeSlabs(void *ptr, const size_t size, unsigned int id);
 
         int DoSlabsNewSlab(const unsigned int id);
         void *DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks);
@@ -193,6 +195,8 @@ class SlabsManager {
         pthread_cond_t slab_rebalance_cond_;
 
 };
+
+}  // end of namespace mdb
 
 
 #endif // __SLABS_H

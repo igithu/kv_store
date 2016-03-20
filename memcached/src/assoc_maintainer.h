@@ -21,7 +21,9 @@
 #define __ASSOC_MAINTAINER_H
 
 
+#include "disallow_copy_and_assign.h"
 #include "item_manager.h"
+#include "thread.h"
 
 #define hashsize(n) ((ub4)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
@@ -38,10 +40,11 @@ enum PauseThreadTypes {
     RESUME_WORKER_THREADS
 };
 
-class AssocMaintainer : public Thread {
+class AssocMaintainer : public PUBLIC_UTIL::Thread {
     public:
-        AssocMaintainer();
         ~AssocMaintainer();
+
+        static AssocMaintainer& GetInstance();
 
         void InitAssoc(const int hashpower_init = 0);
         Item* AssocFind(const char *key, const size_t nkey, const uint32_t hv);
@@ -56,11 +59,14 @@ class AssocMaintainer : public Thread {
         void StopAssocMaintainer();
 
     private:
+        AssocMaintainer();
         /*
          * grows the hashtable to the next power of 2.
          */
         void AssocExpand();
         void PauseThreads(enum PauseThreadTypes type);
+
+        DISALLOW_COPY_AND_ASSIGN(AssocMaintainer);
 
     private:
         unsigned int hashpower_;
@@ -96,7 +102,7 @@ class AssocMaintainer : public Thread {
         pthread_mutex_t maintenance_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
         pthread_mutex_t hash_items_counter_lock_; //  = PTHREAD_MUTEX_INITIALIZER;
 
-}
+};
 
 }  // end of namespace mdb
 

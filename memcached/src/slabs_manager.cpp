@@ -245,12 +245,6 @@ void *SlabsManager::MemoryAllocator(size_t size) {
 
 }
 
-void SlabsManager::FreeSlabs(void *ptr, const size_t size, unsigned int id) {
-    pthread_mutex_lock(&slabs_lock_);
-    DoSlabsFree(ptr, size, id);
-    pthread_mutex_unlock(&slabs_lock_);
-}
-
 int SlabsManager::DoSlabsNewSlab(const unsigned int id) {
     SlabClass *p = &slabclass_[id];
     int len = g_settings.slab_reassign ? g_settings.item_size_max

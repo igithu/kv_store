@@ -17,12 +17,15 @@
 
 #include "mdb.h"
 
+#include <string.h>
+
 #include "global.h"
 #include "hash.h"
 
 namespace mdb {
 
 using std::string;
+using std::vector;
 
 MDB::MDB() :
     item_manager_(ItemManager::GetInstance()),
@@ -76,7 +79,7 @@ bool MDB::InitDB() {
     g_settings.slab_reassign = false;
     g_settings.slab_automove = 0;
     g_settings.shutdown_command = false;
-    g_settings.tail_repair_time = TAIL_REPAIR_TIME_DEFAULT;
+    g_settings.tail_repair_time = 0;
     g_settings.flush_enabled = true;
     g_settings.crawls_persleep = 1000;
 
@@ -165,12 +168,12 @@ bool MDB::Put(const char* key, const char* value) {
      * TODO exptime should set by config
      *      for now, set exptime fixed
      */
-    exptime = REALTIME_MAXDELTA + 1;
-    if (klen > KEY_MAX_LENGTH || vlen < 0 || valen - 2 < 0) {
+    time_t exptime = REALTIME_MAXDELTA + 1;
+    if (klen > KEY_MAX_LENGTH || vlen < 0 || vlen - 2 < 0) {
         return false;
     }
 
-    Item* it = item_manager_.ItemAlloc(key, klen, 0, realtime(exptime), vlen);
+    Item* it = item_manager_.ItemAlloc(key, klen, 0, RealTime(exptime), vlen);
     if (NULL == it) {
         return false;
     }
@@ -216,7 +219,7 @@ rel_time_t RealTime(const time_t exptime) {
      */
     if (0 == exptime) {
         /* 0 means never expire */
-        return 0;
+        return (rel_time_t)0;
     }
 
     if (exptime > REALTIME_MAXDELTA) {
@@ -228,10 +231,11 @@ rel_time_t RealTime(const time_t exptime) {
          * future, effectively making items expiring in the past
          * really expiring never
          */
-        if (exptime <= g_process_started) {
+        rel_time_t process_started = g_process_started;
+        if (exptime <= process_started) {
             return (rel_time_t)1;
         }
-        return (rel_time_t)(exptime - g_process_started);
+        return (rel_time_t)(exptime - process_started);
     } else {
         return (rel_time_t)(exptime + g_current_time);
     }

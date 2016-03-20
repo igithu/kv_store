@@ -21,10 +21,17 @@
 #define __GLOBAL_H
 
 #include <pthread.h>
+#include <time.h>
+
 #include <atomic>
 
 typedef unsigned int rel_time_t;
 
+enum Protocol {
+    ascii_prot = 3, /* arbitrary value. */
+    binary_prot,
+    negotiating_prot /* Discovering the protocol */
+};
 
 /**
  * Global stats.
@@ -89,7 +96,7 @@ struct Settings {
     int reqs_per_event;     /* Maximum number of io to process on each
                                io-event. */
     bool use_cas;
-    enum protocol binding_protocol;
+    enum Protocol binding_protocol;
     int backlog;
     int item_size_max;        /* Maximum item size, and upper end for slabs */
     bool sasl;              /* SASL on/off */
@@ -114,7 +121,7 @@ struct Settings {
 extern Stats g_stats;
 extern Settings g_settings;
 extern volatile std::atomic<rel_time_t> g_current_time;
-extern volatile std::atomic<time_t> g_process_started = time(0) - 60 - 2;
+extern volatile std::atomic<time_t> g_process_started(time(0) - 60 - 2);
 
 
 

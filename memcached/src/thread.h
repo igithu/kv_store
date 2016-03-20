@@ -45,7 +45,7 @@ class Thread {
             int ret = pthread_create(&tid_, NULL, hook, this);
             if (0 != ret) {
                 running_ = false;
-                fprintf("create the thread failed! tid is %lu, pthread_create ret code is %d.\n", tid_, ret);
+                fprintf(stderr, "create the thread failed! tid is %u, pthread_create ret code is %d.\n", tid_, ret);
                 return false;
             }
             return true;

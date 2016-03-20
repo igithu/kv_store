@@ -21,6 +21,7 @@
 #define __MDB_H
 
 #include <string>
+#include <vector>
 
 #include "item_manager.h"
 #include "lru_crawler.h"
@@ -51,7 +52,7 @@ class MDB {
 
         bool Put(const char* key, const char* value);
         bool Get(const char* key, std::string& value);
-        bool MultiGet(vector<std::string> key_list, std::string& value);
+        bool MultiGet(std::vector<std::string> key_list, std::string& value);
         bool Delete(const char* key);
 
     private:

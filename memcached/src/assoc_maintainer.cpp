@@ -55,6 +55,11 @@ AssocMaintainer::~AssocMaintainer() {
     }
 }
 
+AssocMaintainer& AssocMaintainer::GetInstance() {
+    static AssocMaintainer am_instance;
+    return am_instance;
+}
+
 void AssocMaintainer::InitAssoc(const int hashpower_init) {
     if (hashtable_init) {
         hashpower_ = hashtable_init;

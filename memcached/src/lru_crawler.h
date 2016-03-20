@@ -20,6 +20,8 @@
 #ifndef __ITEM_LRU_CRAWLER_H
 #define __ITEM_LRU_CRAWLER_H
 
+#include "thread.h"
+
 namespace mdb {
 
 const int32_t CRAWL_LARGEST_ID = 256;
@@ -54,7 +56,7 @@ enum CrawlerResultType {
     CRAWLER_OK = 0, CRAWLER_RUNNING, CRAWLER_BADCLASS, CRAWLER_NOTSTARTED
 };
 
-class LRUCrawler : public Thread {
+class LRUCrawler : public PUBLIC_UTIL::Thread {
     public:
         ~LRUCrawler();
 
