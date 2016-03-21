@@ -36,7 +36,6 @@
 
 namespace mdb {
 
-const int32_t KEY_MAX_LENGTH = 250;
 const int32_t REALTIME_MAXDELTA  = 60*60*24*30;
 
 class MDB {

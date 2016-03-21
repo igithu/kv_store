@@ -155,9 +155,9 @@ unsigned int SlabsManager::SlabsClsid(const size_t size) {
     return res;
 }
 
-void *SlabsManager::SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks) {
+Item *SlabsManager::SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks) {
     pthread_mutex_lock(&slabs_lock_);
-    void *ret = DoSlabsAllocc(size, id, total_chunks);
+    Item *ret = DoSlabsAlloc(size, id, total_chunks);
     pthread_mutex_unlock(&slabs_lock_);
     return ret;
 }
@@ -269,11 +269,11 @@ int SlabsManager::DoSlabsNewSlab(const unsigned int id) {
 
 }
 
-void *SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks) {
+Item *SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks) {
     if (id < POWER_SMALLEST || id > power_largest) {
         return NULL;
     }
-    void *ret = NULL;
+    Item *ret = NULL;
 
     SlabClass* p = &slabclass_[id];
     assert(p->sl_curr == 0 || ((Item *)p->slots)->slabs_clsid == 0);
@@ -301,7 +301,7 @@ void *SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned in
         it->it_flags &= ~ITEM_SLABBED;
         it->refcount = 1;
         p->sl_curr--;
-        ret = (void *)it;
+        ret = it;
     }
 
     if (ret) {

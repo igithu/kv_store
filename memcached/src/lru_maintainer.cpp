@@ -25,7 +25,7 @@
 namespace mdb {
 
 const int MAX_LRU_MAINTAINER_SLEEP = 1000000;
-const int  MIN_LRU_MAINTAINER_SLEEP = 1000;
+const int MIN_LRU_MAINTAINER_SLEEP = 1000;
 
 static ItemManager& im_instance = ItemManager::GetInstance();
 static SlabsManager& sm_instance = SlabsManager::GetInstance();

@@ -17,6 +17,11 @@
 
 #include "item_manager.h"
 
+#include <stdlib.h>
+#include <cassert>
+#include <string.h>
+#include <sys/time.h>
+
 #include "lru_maintainer.h"
 #include "assoc_maintainer.h"
 #include "slabs_manager.h"
@@ -36,27 +41,27 @@ static SlabsManager& sm_instance = SlabsManager::GetInstance();
 static int32_t lg_power = 13;
 static LRUStatus lru_status[4] = {HOT_LRU, WARM_LRU, COLD_LRU, NOEXP_LRU};
 
-static struct ev_loop *ItemManager::time_loop_ = ev_default_loop(0);
+struct ev_loop *ItemManager::time_loop_ = ev_default_loop(0);
 
 ItemManager::ItemManager() :
     start_lru_crawler_(false),
     start_lru_maintainer_(false) {
-    heads_ = calloc(LARGEST_ID, sizeof(Item*));
-    tails_ = calloc(LARGEST_ID, sizeof(Item*));
 
-    item_sizes_ = calloc(LARGEST_ID, sizeof(unsigned int));
-    item_stats_ = calloc(LARGEST_ID, sizeof(ItemStats));
+    heads_ = (Item**)calloc(LARGEST_ID, sizeof(Item*));
+    tails_ = (Item**)calloc(LARGEST_ID, sizeof(Item*));
+    item_sizes_ = (uint32_t*)calloc(LARGEST_ID, sizeof(uint32_t));
+    item_stats_ = (ItemStats*)calloc(LARGEST_ID, sizeof(ItemStats));
 
-    cache_locks_ = calloc(POWER_LARGEST, sizeof(pthread_mutex_t));
+    cache_locks_ = (pthread_mutex_t*)calloc(POWER_LARGEST, sizeof(pthread_mutex_t));
 
     int32_t lock_cnt = hashsize(lg_power);
-    item_locks_ = calloc(lock_cnt, sizeof(pthread_mutex_t));
+    item_locks_ = (pthread_mutex_t*)calloc(lock_cnt, sizeof(pthread_mutex_t));
 
-    for (i = 0; i < POWER_LARGEST; ++i) {
+    for (int32_t i = 0; i < POWER_LARGEST; ++i) {
         pthread_mutex_init(&cache_locks_[i], NULL);
     }
 
-    for (i = 0; i < lock_cnt; ++i) {
+    for (int32_t i = 0; i < lock_cnt; ++i) {
         pthread_mutex_init(&item_locks_[i], NULL);
     }
 }
@@ -129,7 +134,7 @@ Item *ItemManager::DoItemAlloc(
      */
     Item *it = NULL;
     unsigned int total_chunks = 0;
-    int loop_times = 0
+    int loop_times = 0;
     for (; loop_times < 5; ++loop_times) {
         /* Try to reclaim memory first */
         if (!g_settings.lru_maintainer_thread) {
@@ -142,7 +147,7 @@ Item *ItemManager::DoItemAlloc(
             CacheUnlock(id);
         }
         if (NULL != it) {
-            break
+            break;
         }
         if (g_settings.lru_maintainer_thread) {
             ItemLRUPullTail(id, HOT_LRU, total_chunks, false, cur_hv);
@@ -219,7 +224,7 @@ bool ItemManager::ItemSizeOk(const size_t nkey, const int flags, const int nbyte
         ntotal += sizeof(uint64_t);
     }
 
-    return im_instance.SlabsClsid(ntotal) != 0;
+    return sm_instance.SlabsClsid(ntotal) != 0;
 }
 
 int  ItemManager::DoItemLink(Item *it, const uint32_t hv) {
@@ -237,7 +242,7 @@ int  ItemManager::DoItemLink(Item *it, const uint32_t hv) {
     ITEM_set_cas(it, (g_settings.use_cas) ? GetCasId() : 0);
     am_instance.AssocInsert(it, hv);
     ItemLinkQ(it);
-    RefcountIncrr(&it->refcount);
+    RefcountIncr(&it->refcount);
     return 1;
 }
 
@@ -272,13 +277,13 @@ void ItemManager::DoItemRemove(Item *it) {
 }
 
 void ItemManager::DoItemUpdate(Item *it) {
-    if (it->time >= current_tim_ - ITEM_UPDATE_INTERVAL) {
+    if (it->time >= current_time_ - ITEM_UPDATE_INTERVAL) {
         return;
     }
     assert((it->it_flags & ITEM_SLABBED) == 0);
 
     if ((it->it_flags & ITEM_LINKED) == 0) {
-        return
+        return;
     }
     it->time = g_current_time;
     if (!g_settings.lru_maintainer_thread) {
@@ -522,16 +527,16 @@ Item *ItemManager::DoItemTouch(const char *key, const size_t nkey, uint32_t expt
 void ItemManager::ItemLinkQ(Item* it) {
     CacheLock(it->slabs_clsid);
     DoItemLinkQ(it);
-    CacheUnlock(it->slabs_clsid):
+    CacheUnlock(it->slabs_clsid);
 }
 
 void ItemManager::ItemUnlinkQ(Item* it) {
     CacheLock(it->slabs_clsid);
     DoItemUnlinkQ(it);
-    CacheUnlock(it->slabs_clsid):
+    CacheUnlock(it->slabs_clsid);
 }
 
-Item *ItemManager::ItemAlloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
+Item *ItemManager::ItemAlloc(const char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes) {
     /*
      * do_item_alloc handles its own locks
      */
@@ -556,7 +561,7 @@ Item *ItemManager::ItemTouch(const char *key, const size_t nkey, uint32_t exptim
 }
 
 int32_t ItemManager::ItemLink(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    uint32_t hv = Hash(ITEM_key(it), it->nkey);
     Lock(hv);
     int32_t ret = DoItemLink(it, hv);
     Unlock(hv);
@@ -564,11 +569,10 @@ int32_t ItemManager::ItemLink(Item *it) {
 }
 
 void ItemManager::ItemRemove(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    uint32_t hv = Hash(ITEM_key(it), it->nkey);
     Lock(hv);
-    int32_t ret = DoItemRemove(it);
+    DoItemRemove(it);
     Unlock(hv);
-    return ret;
 }
 
 int ItemManager::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
@@ -576,21 +580,21 @@ int ItemManager::ItemReplace(Item *it, Item *new_it, const uint32_t hv) {
 }
 
 void ItemManager::ItemUnlink(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    uint32_t hv = Hash(ITEM_key(it), it->nkey);
     Lock(hv);
-    DoItemUnlink(item, hv);
+    DoItemUnlink(it, hv);
     Unlock(hv);
 }
 
 void ItemManager::ItemUpdate(Item *it) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+    uint32_t hv = Hash(ITEM_key(it), it->nkey);
     Lock(hv);
-    DoItemUpdate(item);
+    DoItemUpdate(it);
     Unlock(hv);
 }
 
 char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes) {
-    unsigned int32_t memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
+    int32_t memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
     unsigned int id = slabs_clsid;
 
     if (!g_settings.lru_maintainer_thread) {
@@ -599,7 +603,7 @@ char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned 
 
     CacheLock(id);
     Item *it = heads_[id];
-    char* buffer = malloc((size_t)memlimit);
+    char* buffer = (char*)malloc((size_t)memlimit);
     if (buffer == 0) {
         return NULL;
     }
@@ -636,7 +640,7 @@ char *ItemManager::ItemCacheDump(const unsigned int slabs_clsid, const unsigned 
     memcpy(buffer + bufcurr, "END\r\n", 6);
     bufcurr += 5;
     *bytes = bufcurr;
-    CacheUnlock(i);
+    CacheUnlock(id);
 
     return buffer;
 }
@@ -674,14 +678,14 @@ void ItemManager::ItemSizeDecrement(int32_t index) {
 
 Item *ItemManager::GetItemHeadByIndex(int32_t index) {
     CacheLock(index);
-    item* it = heads_[index];
+    Item* it = heads_[index];
     CacheUnlock(index);
     return it;
 }
 
 Item *ItemManager::GetItemTailByIndex(int32_t index) {
     CacheLock(index);
-    item* it = tails_[index];
+    Item* it = tails_[index];
     CacheUnlock(index);
     return it;
 }
@@ -768,7 +772,7 @@ bool ItemManager::ItemEvaluate(Item *eval_item, uint32_t hv, int32_t is_index) {
             fprintf(stderr, "\n");
         }
         if ((eval_item->it_flags & ITEM_FETCHED) == 0) {
-            ++item_stats_[i].expired_unfetched;
+            ++item_stats_[is_index].expired_unfetched;
         }
         DoItemUnlinkNolock(eval_item, hv);
         DoItemRemove(eval_item);
@@ -805,11 +809,11 @@ void *ItemManager::TryLock(uint32_t hv) {
 }
 
 void ItemManager::TryLockUnlock(void *arg) {
-    pthread_mutex_unlock((pthread_mutex_t *) lock);
+    pthread_mutex_unlock((pthread_mutex_t *) arg);
 }
 
 void ItemManager::Unlock(uint32_t hv) {
-    pthread_mutex_unlock(&item_locks_[hv & hashmask(item_lock_hashpower)]);
+    pthread_mutex_unlock(&item_locks_[hv & hashmask(lg_power)]);
 }
 
 void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
@@ -833,8 +837,8 @@ void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
 #endif
         ev_init(&timer_w_, ItemManager::ClockHandler);
         ev_timer_set(&timer_w_, 2, 0);
-        ev_timer_start(time_loop, &timer_w_);
-        ev_run(time_loop, 0);
+        ev_timer_start(time_loop_, &timer_w_);
+        ev_run(time_loop_, 0);
     }
 
 #if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
@@ -853,8 +857,8 @@ void ItemManager::ClockHandler(struct ev_loop *loop,ev_timer *timer_w,int e) {
     }
 }
 
-enum StoreItemType ItemManager::StoreItem(Item *item, NreadOpType op) {
-    uint32_t hv = Hash(ITEM_key(item), item->nkey);
+enum StoreItemType ItemManager::StoreItem(Item *it, NreadOpType op) {
+    uint32_t hv = Hash(ITEM_key(it), it->nkey);
     Lock(hv);
     enum StoreItemType ret = DoStoreItem(hv, it, op);
     Unlock(hv);
@@ -890,7 +894,7 @@ size_t ItemManager::ItemMakeHeader(const uint8_t nkey,
 int32_t ItemManager::ItemLRUPullTail(
         const int orig_id,
         const LRUStatus cur_lru,
-        const unsigned int total_chunks,
+        const uint64_t total_chunks,
         const bool do_evict,
         const uint32_t cur_hv) {
     if (0 == orig_id) {
@@ -902,16 +906,15 @@ int32_t ItemManager::ItemLRUPullTail(
     int removed = 0;
     int id = orig_id | cur_lru;
 
-    CacheLock(id)
+    CacheLock(id);
     Item* search = tails_[id];
     ItemStats& cur_itemstats = item_stats_[id];
     /*
      * We walk up *only* for locked items, and if bottom is expired.
      */
-    for (int tries = 5, Item* next_it = NULL;
-        tries > 0 && search != NULL;
-        --tries, search = next_it) {
-        void *hold_lock = NULL;
+    Item* next_it = NULL;
+    void *hold_lock = NULL;
+    for (int tries = 5; tries > 0 && search != NULL; --tries, search = next_it) {
         /*
          * we might relink search mid-loop, so search->prev isn't reliable
          */
@@ -980,10 +983,11 @@ int32_t ItemManager::ItemLRUPullTail(
          * If we're HOT_LRU or WARM_LRU and over size limit, send to COLD_LRU.
          * If we're COLD_LRU, send to WARM_LRU unless we need to evict
          */
+        uint64_t limit = 0;
         switch (cur_lru) {
             // case HOT_LRU:
             case WARM_LRU:
-                uint64_t limit = total_chunks * g_settings.warm_lru_pct / 100;
+                limit = total_chunks * g_settings.warm_lru_pct / 100;
                 if (item_sizes_[id] > limit) {
                     cur_itemstats.moves_to_cold++;
                     lru_status = COLD_LRU;
@@ -1052,7 +1056,7 @@ int32_t ItemManager::ItemLRUPullTail(
 uint32_t ItemManager::NoExpLRUSize(int32_t slabs_clsid) {
     int id = CLEAR_LRU(slabs_clsid);
     CacheLock(id);
-    unsigned int32_t ret = item_sizes_[id];
+    uint32_t ret = item_sizes_[id];
     CacheUnlock(id);
     return ret;
 }

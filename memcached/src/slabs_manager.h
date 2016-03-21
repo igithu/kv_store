@@ -103,7 +103,7 @@ class SlabsManager {
         /*
          * Allocate object of given length. 0 on error
          * */ /*@null@*/
-        void *SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks);
+        Item *SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks);
 
         /*
          * Free previously allocated object
@@ -138,7 +138,7 @@ class SlabsManager {
         void *MemoryAllocator(size_t size);
 
         int DoSlabsNewSlab(const unsigned int id);
-        void *DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks);
+        Item *DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks);
         void DoSlabsFree(void *ptr, const size_t size, unsigned int id);
         void DoSlabsStats(ADD_STAT add_stats, void *c);
         enum ReassignResultType DoSlabsReassign(int src, int dst);

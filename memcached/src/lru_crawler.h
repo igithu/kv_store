@@ -20,6 +20,9 @@
 #ifndef __ITEM_LRU_CRAWLER_H
 #define __ITEM_LRU_CRAWLER_H
 
+#include <stdint.h>
+
+#include "item_manager.h"
 #include "thread.h"
 
 namespace mdb {

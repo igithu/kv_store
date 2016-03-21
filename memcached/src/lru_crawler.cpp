@@ -16,12 +16,15 @@
 
 #include "lru_crawler.h"
 
-#include "item_manager.h"
+#include <stdlib.h>
+
 #include "lru_maintainer.h"
 #include "global.h"
 #include "util.h"
 
-static ItemManager& im_instance = ItemMaintainer::GetInstance();
+namespace mdb {
+
+static ItemManager& im_instance = ItemManager::GetInstance();
 
 LRUCrawler::LRUCrawler() :
     lru_crawler_initialized_(false),
@@ -30,8 +33,9 @@ LRUCrawler::LRUCrawler() :
     lru_crawler_lock_(PTHREAD_MUTEX_INITIALIZER),
     lru_crawler_cond_(PTHREAD_COND_INITIALIZER),
     lru_crawler_stats_lock_(PTHREAD_MUTEX_INITIALIZER) {
-        crawlers_ = calloc(CRAWL_LARGEST_ID, sizeof(Crawler));
-        crawler_stats_ = calloc(MAX_NUMBER_OF_SLAB_CLASSES, sizeof(CrawlerStats));
+
+        crawlers_ = (Crawler*)calloc(CRAWL_LARGEST_ID, sizeof(Crawler));
+        crawler_stats_ = (CrawlerStats*)calloc(MAX_NUMBER_OF_SLAB_CLASSES, sizeof(CrawlerStats));
 }
 
 LRUCrawler::~LRUCrawler() {
@@ -284,7 +288,7 @@ void LRUCrawler::ItemCrawlerEvaluate(Item *search, uint32_t hv, int i) {
 }
 
 
-
+}  // end of namespace mdb
 
 
 

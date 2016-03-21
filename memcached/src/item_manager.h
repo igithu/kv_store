@@ -19,9 +19,10 @@
 #ifndef __ITEM_MAINTAINER_H
 #define __ITEM_MAINTAINER_H
 
-#include <stdint.h>
-
 #include <atomic>
+
+#include <stdint.h>
+#include <pthread.h>
 
 #include<ev.h>
 
@@ -31,6 +32,10 @@
 #if HAVE_UNISTD_H
 # include <unistd.h>
 #endif
+
+
+
+namespace mdb {
 
 /*
  * Size of an incr buf.
@@ -100,7 +105,7 @@
          + (item)->nsuffix \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
 
-#define ITEM_ntotal(item) (sizeof(struct _stritem) + (item)->nkey + 1 \
+#define ITEM_ntotal(item) (sizeof(struct Item) + (item)->nkey + 1 \
          + (item)->nsuffix + (item)->nbytes \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
 
@@ -117,8 +122,7 @@
 #define APPEND_NUM_STAT(num, name, fmt, val) \
     APPEND_NUM_FMT_STAT("%d:%s", num, name, fmt, val)
 
-
-namespace mdb {
+#define CLEAR_LRU(id) (id & ~(3<<6))
 
 /**
  * Callback for any function producing stats.
@@ -138,6 +142,7 @@ typedef void (*ADD_STAT)(const char *key, const uint16_t klen,
  */
 typedef unsigned int rel_time_t;
 
+const int32_t KEY_MAX_LENGTH = 250;
 
 enum DeltaResultType {
     OK, NON_NUMERIC, EOM, DELTA_ITEM_NOT_FOUND, DELTA_ITEM_CAS_MISMATCH
@@ -165,12 +170,12 @@ struct Item {
     /*
      * Protected by LRU locks
      */
-    struct _stritem *next;
-    struct _stritem *prev;
+    struct Item *next;
+    struct Item *prev;
     /*
      * Rest are protected by an item lock
      */
-    struct _stritem *h_next;    /* hash chain next */
+    struct Item *h_next;    /* hash chain next */
     rel_time_t      time;       /* least recent access */
     rel_time_t      exptime;    /* expire time */
     int             nbytes;     /* size of data */
@@ -224,7 +229,7 @@ class ItemManager {
         // bool SwitchLRUMaintainer(bool status);
 
         Item *DoItemAlloc(
-                char *key,
+                const char *key,
                 const size_t nkey,
                 const int flags,
                 const rel_time_t exptime,
@@ -348,7 +353,7 @@ class ItemManager {
         int32_t ItemLRUPullTail(
                 const int orig_id,
                 const LRUStatus cur_lru,
-                const unsigned int total_chunks,
+                const uint64_t total_chunks,
                 const bool do_evict,
                 const uint32_t cur_hv);
 
