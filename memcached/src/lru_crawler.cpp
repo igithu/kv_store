@@ -17,10 +17,12 @@
 #include "lru_crawler.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "lru_maintainer.h"
 #include "global.h"
 #include "util.h"
+#include "hash.h"
 
 namespace mdb {
 
@@ -69,15 +71,15 @@ void LRUCrawler::Run() {
                     continue;
                 }
                 im_instance.CacheLock(i);
-                search = im_instance.DoItemLinkQ((Item *)&crawlers_[i], true);
+                search = im_instance.CrawlerCrawlQ((Item *)&crawlers_[i]);
                 if (NULL == search || (crawlers_[i].remaining && --crawlers_[i].remaining < 1)) {
                     if (g_settings.verbose > 2) {
                         fprintf(stderr, "Nothing left to crawl for %d\n", i);
                     }
                     crawlers_[i].it_flags = 0;
-                    --crawler_count;
-                    im_instance.ItemUnlinkQ((Item *)&crawlers_[i]);
-                    im_instance.CacheUnlock(i)
+                    --crawler_count_;
+                    im_instance.DoItemUnlinkQ((Item *)&crawlers_[i], true);
+                    im_instance.CacheUnlock(i);
                     pthread_mutex_lock(&lru_crawler_stats_lock_);
                     crawler_stats_[CLEAR_LRU(i)].end_time = g_current_time;
                     crawler_stats_[CLEAR_LRU(i)].run_complete = true;
@@ -88,7 +90,7 @@ void LRUCrawler::Run() {
                 /* Attempt to hash item lock the "search" item. If locked, no
                  * other callers can incr the refcount
                  */
-                if ((hold_lock = im_instance.Trylock(hv)) == NULL) {
+                if ((hold_lock = im_instance.TryLock(hv)) == NULL) {
                     im_instance.CacheUnlock(i);
                     continue;
                 }
@@ -112,7 +114,7 @@ void LRUCrawler::Run() {
                 if (hold_lock) {
                     im_instance.TryLockUnlock(hold_lock);
                 }
-                pthread_mutex_unlock(&lru_locks[i]);
+                im_instance.CacheUnlock(i);
 
                 if (crawls_persleep <= 0 && g_settings.lru_crawler_sleep) {
                     usleep(g_settings.lru_crawler_sleep);
@@ -133,7 +135,7 @@ void LRUCrawler::Run() {
     }
 }
 
-bool InitLRUCrawler::InitLRUCrawler() {
+bool LRUCrawler::InitLRUCrawler() {
     if (lru_crawler_initialized_) {
         return true;
     }
@@ -149,7 +151,7 @@ bool InitLRUCrawler::InitLRUCrawler() {
 
 bool LRUCrawler::StartLRUCrawler() {
     if (g_settings.lru_crawler) {
-        return true
+        return true;
     }
     pthread_mutex_lock(&lru_crawler_lock_);
     lru_crawler_running_ = true;
@@ -181,8 +183,9 @@ enum CrawlerResultType LRUCrawler::LRUCrawl(char *slabs) {
      * FIXME: I added this while debugging. Don't think it's needed?
      */
     memset(tocrawl, 0, sizeof(uint8_t) * MAX_NUMBER_OF_SLAB_CLASSES);
+    uint32_t sid = 0;
     if (strcmp(slabs, "all") == 0) {
-        for (uint32_t sid = 0; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {
+        for (; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {
             tocrawl[sid] = 1;
         }
     } else {
@@ -214,11 +217,11 @@ enum CrawlerResultType LRUCrawler::LRUCrawl(char *slabs) {
 }
 
 void LRUCrawler::PauseCrawler() {
-    pthread_mutex_lock(&lru_maintainer_lock_);
+    pthread_mutex_lock(&lru_crawler_lock_);
 }
 
 void LRUCrawler::ResumeCrawler() {
-    pthread_mutex_unlock(&lru_maintainer_lock_);
+    pthread_mutex_unlock(&lru_crawler_lock_);
 }
 
 int LRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {

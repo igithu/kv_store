@@ -318,6 +318,7 @@ class ItemManager {
         Item *GetItemTailByIndex(int32_t index);
         void ItemLinkQ(Item* it);
         void ItemUnlinkQ(Item* it);
+        Item *CrawlerCrawlQ(Item* it);
 
         void CacheLock(int32_t lock_id);
         void CacheUnlock(int32_t lock_id);
