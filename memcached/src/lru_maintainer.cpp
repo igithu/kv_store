@@ -18,6 +18,7 @@
 
 #include "item_manager.h"
 #include "slabs_manager.h"
+#include "lru_crawler.h"
 #include "global.h"
 #include "util.h"
 
@@ -28,6 +29,7 @@ const int MAX_LRU_MAINTAINER_SLEEP = 1000000;
 const int MIN_LRU_MAINTAINER_SLEEP = 1000;
 
 static ItemManager& im_instance = ItemManager::GetInstance();
+static LRUCrawler& lc_instance = LRUCrawler::GetInstance();
 static SlabsManager& sm_instance = SlabsManager::GetInstance();
 
 LRUMaintainer::LRUMaintainer() :
@@ -83,7 +85,7 @@ void LRUMaintainer::Run() {
         /* Once per second at most */
         rel_time_t ct = g_current_time;
         if (g_settings.lru_crawler && last_crawler_check != ct) {
-            lru_maintainer_crawler_check();
+            lc_instance.LRUMaintainerCrawlerCheck();
             last_crawler_check = ct;
         }
     }
@@ -130,7 +132,7 @@ int32_t LRUMaintainer::InitLRUMaintainer() {
 
 bool LRUMaintainer::StartLRUMaintainer() {
     if (g_settings.lru_maintainer_thread) {
-        return true
+        return true;
     }
     pthread_mutex_lock(&lru_maintainer_lock_);
     lru_maintainer_running_ = true;

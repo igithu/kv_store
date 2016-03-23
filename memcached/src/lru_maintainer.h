@@ -22,9 +22,11 @@
 
 #include "thread.h"
 
+#include <stdint.h>
+
+#include "disallow_copy_and_assign.h"
 
 namespace mdb {
-
 
 class LRUMaintainer : public PUBLIC_UTIL::Thread {
     public:

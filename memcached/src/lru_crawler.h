@@ -80,6 +80,9 @@ class LRUCrawler : public PUBLIC_UTIL::Thread {
         void PauseCrawler();
         void ResumeCrawler();
 
+        int32_t LRUCrawlerStart(uint32_t id, uint32_t remaining);
+        void LRUMaintainerCrawlerCheck();
+
     private:
         LRUCrawler();
 

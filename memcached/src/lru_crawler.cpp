@@ -224,6 +224,20 @@ void LRUCrawler::ResumeCrawler() {
     pthread_mutex_unlock(&lru_crawler_lock_);
 }
 
+int32_t LRUCrawler::LRUCrawlerStart(uint32_t id, uint32_t remaining) {
+    if (pthread_mutex_trylock(&lru_crawler_lock_) != 0) {
+        return 0;
+    }
+    int32_t starts = DoLRUCrawlerStart(id, remaining);
+    if (starts) {
+        pthread_cond_signal(&lru_crawler_cond_);
+    }
+    pthread_mutex_unlock(&lru_crawler_lock_);
+    return starts;
+}
+
+void LRUCrawler::LRUMaintainerCrawlerCheck() {
+}
 int LRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
     int starts = 0;
 

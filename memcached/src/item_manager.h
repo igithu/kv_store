@@ -332,15 +332,6 @@ class ItemManager {
         void Unlock(uint32_t hv);
 
         static void ClockHandler(struct ev_loop *loop, ev_timer *timer_w,int e);
-
-    private:
-        ItemManager();
-        /*
-         * Stores an item in the cache (high level, obeys set/add/replace semantics)
-         */
-        enum StoreItemType StoreItem(Item *item, NreadOpType op);
-
-        bool IsFlushed(Item* it);
         size_t ItemMakeHeader(
                 const uint8_t nkey,
                 const int flags,
@@ -359,6 +350,15 @@ class ItemManager {
                 const uint32_t cur_hv);
 
         uint32_t NoExpLRUSize(int32_t slabs_clsid);
+
+    private:
+        ItemManager();
+        /*
+         * Stores an item in the cache (high level, obeys set/add/replace semantics)
+         */
+        enum StoreItemType StoreItem(Item *item, NreadOpType op);
+
+        bool IsFlushed(Item* it);
 
         DISALLOW_COPY_AND_ASSIGN(ItemManager);
 
