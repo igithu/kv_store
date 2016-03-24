@@ -229,34 +229,34 @@ class ItemManager {
         // bool SwitchLRUMaintainer(bool status);
 
         Item *DoItemAlloc(
-                const char *key,
+                const char* key,
                 const size_t nkey,
                 const int flags,
                 const rel_time_t exptime,
                 const int nbytes,
                 const uint32_t cur_hv);
 
-        void FreeItem(Item *it);
+        void FreeItem(Item* it);
         bool ItemSizeOk(const size_t nkey, const int flags, const int nbytes);
 
         /*
          * may fail if transgresses limits
          */
-        int  DoItemLink(Item *it, const uint32_t hv);
-        void DoItemUnlink(Item *it, const uint32_t hv);
-        void DoItemUnlinkNolock(Item *it, const uint32_t hv);
-        void DoItemRemove(Item *it);
+        int  DoItemLink(Item* it, const uint32_t hv);
+        void DoItemUnlink(Item* it, const uint32_t hv);
+        void DoItemUnlinkNolock(Item* it, const uint32_t hv);
+        void DoItemRemove(Item* it);
 
         /*
          * update LRU time to current and reposition
          */
-        void DoItemUpdate(Item *it);
-        void DoItemUpdateNolock(Item *it);
-        int  DoItemReplace(Item *it, Item *new_it, const uint32_t hv);
+        void DoItemUpdate(Item* it);
+        void DoItemUpdateNolock(Item* it);
+        int  DoItemReplace(Item* it, Item* new_it, const uint32_t hv);
 
         enum StoreItemType DoStoreItem(const uint32_t hv, Item* it, NreadOpType op);
-        Item *DoItemGet(const char *key, const size_t nkey, const uint32_t hv);
-        Item *DoItemTouch(const char *key, const size_t nkey, uint32_t exptime, const uint32_t hv);
+        Item* DoItemGet(const char* key, const size_t nkey, const uint32_t hv);
+        Item* DoItemTouch(const char* key, const size_t nkey, uint32_t exptime, const uint32_t hv);
         void DoItemLinkQ(Item* it, bool is_crawler = false);
         void DoItemUnlinkQ(Item* it, bool is_crawler = false);
 
@@ -266,32 +266,32 @@ class ItemManager {
          * Returns an item if it hasn't been marked as expired,
          * lazy-expiring as needed.
          */
-        Item *ItemGet(const char *key, const size_t nkey);
-        Item *ItemTouch(const char *key, const size_t nkey, uint32_t exptime);
+        Item* ItemGet(const char* key, const size_t nkey);
+        Item* ItemTouch(const char* key, const size_t nkey, uint32_t exptime);
 
         /*
          * Links an item into the LRU and hashtable.
          */
-        int   ItemLink(Item *it);
+        int ItemLink(Item* it);
         /*
          * Decrements the reference count on an item and adds it to the freelist if
          * needed.
          */
-        void  ItemRemove(Item *it);
+        void ItemRemove(Item* it);
         /*
          * Replaces one item with another in the hashtable.
          * Unprotected by a mutex lock since the core server does not require
          * it to be thread-safe.
          */
-        int ItemReplace(Item *it, Item *new_it, const uint32_t hv);
+        int ItemReplace(Item* it, Item* new_it, const uint32_t hv);
         /*
          * Unlinks an item from the LRU and hashtable.
          */
-        void  ItemUnlink(Item *it);
+        void  ItemUnlink(Item* it);
         /*
          * Moves an item to the back of the LRU queue.
          */
-        void ItemUpdate(Item *it);
+        void ItemUpdate(Item* it);
 
         /*@null@*/
         /*
@@ -302,7 +302,7 @@ class ItemManager {
          * It may not be the best idea to leave it like this, but for now it's safe.
          * FIXME: only dumps the hot LRU with the new LRU's.
          */
-        char *ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
+        char* ItemCacheDump(const unsigned int slabs_clsid, const unsigned int limit, unsigned int *bytes);
         // void ItemStats(ADD_STAT add_stats, void *c);
         void ItemStatsTotals(ADD_STAT add_stats, void *c);
         void ItemStatsSizes(ADD_STAT add_stats, void *c);
@@ -314,8 +314,8 @@ class ItemManager {
         void ItemSizeIncrement(int32_t index);
         void ItemSizeDecrement(int32_t index);
 
-        Item *GetItemHeadByIndex(int32_t index);
-        Item *GetItemTailByIndex(int32_t index);
+        Item* GetItemHeadByIndex(int32_t index);
+        Item* GetItemTailByIndex(int32_t index);
         void ItemLinkQ(Item* it);
         void ItemUnlinkQ(Item* it);
         Item *CrawlerCrawlQ(Item* it);

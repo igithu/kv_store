@@ -237,7 +237,61 @@ int32_t LRUCrawler::LRUCrawlerStart(uint32_t id, uint32_t remaining) {
 }
 
 void LRUCrawler::LRUMaintainerCrawlerCheck() {
+    static rel_time_t last_crawls[MAX_NUMBER_OF_SLAB_CLASSES];
+    static rel_time_t next_crawl_wait[MAX_NUMBER_OF_SLAB_CLASSES];
+    for (int32_t i = POWER_SMALLEST; i < MAX_NUMBER_OF_SLAB_CLASSES; i++) {
+        CrawlerStats *cs = &crawler_stats_[i];
+        /* We've not successfully kicked off a crawl yet. */
+        if (last_crawls[i] == 0) {
+            if (LRUCrawlerStart(i, 0) > 0) {
+                last_crawls[i] = g_current_time;
+            }
+        }
+        pthread_mutex_lock(&lru_crawler_stats_lock_);
+        if (cs->run_complete) {
+            /* Should we crawl again? */
+            uint64_t possible_reclaims = cs->seen - cs->noexp;
+            /* Need to think we can free at least 1% of the items before
+             * crawling. */
+            /* FIXME: Configurable? */
+            uint64_t low_watermark = (cs->seen / 100) + 1;
+            rel_time_t since_run = g_current_time - cs->end_time;
+
+            /* Don't bother if the payoff is too low. */
+            if (g_settings.verbose > 1) {
+                fprintf(stderr, "maint crawler: low_watermark: %llu, possible_reclaims: %llu, since_run: %u\n",
+                        (unsigned long long)low_watermark, (unsigned long long)possible_reclaims,
+                        (unsigned int)since_run);
+            }
+
+            uint64_t available_reclaims = 0;
+            for (int32_t x = 0; x < 60; x++) {
+                if (since_run < (x * 60) + 60) {
+                    break;
+                }
+                available_reclaims += cs->histo[x];
+            }
+            if (available_reclaims > low_watermark) {
+                last_crawls[i] = 0;
+                if (next_crawl_wait[i] > 60) {
+                    next_crawl_wait[i] -= 60;
+                }
+            } else if (since_run > 5 && since_run > next_crawl_wait[i]) {
+                last_crawls[i] = 0;
+                /*
+                 * MAX_MAINTCRAWL_WAIT?
+                 */
+                if (next_crawl_wait[i] < 10)
+                    next_crawl_wait[i] += 60;
+            }
+            if (g_settings.verbose > 1) {
+                fprintf(stderr, "maint crawler: available reclaims: %llu, next_crawl: %u\n", (unsigned long long)available_reclaims, next_crawl_wait[i]);
+            }
+        }
+        pthread_mutex_unlock(&lru_crawler_stats_lock_);
+    }
 }
+
 int LRUCrawler::DoLRUCrawlerStart(uint32_t id, uint32_t remaining) {
     int starts = 0;
 

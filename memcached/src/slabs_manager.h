@@ -48,6 +48,7 @@ struct SlabClass {
 
     void **slab_list;       /* array of slab pointers */
     unsigned int list_size; /* size of prev array */
+    size_t requested; /* The number of requested bytes */
 };
 
 enum ReassignResultType {
@@ -125,6 +126,7 @@ class SlabsManager {
          */
         unsigned int SlabsAvailableChunks(unsigned int id, bool *mem_flag, unsigned int *total_chunks);
         enum ReassignResultType SlabsReassign(int src, int dst);
+        void SlabsPreallocate(const unsigned int maxslabs);
          /*
           * If we hold this lock, rebalancer can't wake up or move
           */
@@ -168,7 +170,7 @@ class SlabsManager {
 
 
     private:
-        SlabClass slabclass[MAX_NUMBER_OF_SLAB_CLASSES];
+        SlabClass slabclass_[MAX_NUMBER_OF_SLAB_CLASSES];
 
         size_t mem_limit_;
         size_t mem_malloced_;

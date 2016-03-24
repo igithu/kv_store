@@ -17,6 +17,7 @@
 #include "slabs_maintainer.h"
 
 #include "slabs_manager.h"
+#include "global.h"
 
 namespace mdb {
 

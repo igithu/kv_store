@@ -42,7 +42,7 @@ void SlabsRebalancer::Run() {
     /*
      * So we first pass into cond_wait with the mutex held
      */
-    pthread_mutex_lock(&slabs_rebalance_lock);
+    pthread_mutex_lock(&sm_instance.slabs_rebalance_lock_);
     int was_busy = 0;
     while (slabs_rebalancer_running_) {
         if (g_slab_rebalance_signal == 1) {
@@ -79,7 +79,7 @@ void SlabsRebalancer::StopSlabsRebalancer() {
     slabs_rebalancer_running_ = false;
 }
 
-// end of namespace mdb
+}  // end of namespace mdb
 
 
 

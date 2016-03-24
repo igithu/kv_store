@@ -16,11 +16,19 @@
 
 #include "slabs_manager.h"
 
+#include <stdlib.h>
+#include <string.h>
+
+#include <assert.h>
+
 #include "item_manager.h"
 #include "slabs_maintainer.h"
 #include "slabs_rebalancer.h"
 #include "global.h"
+#include "hash.h"
 #include "util.h"
+
+namespace mdb {
 
 static ItemManager& im_instance = ItemManager::GetInstance();
 static SlabsMaintainer& sm_instance = SlabsMaintainer::GetInstance();
@@ -55,7 +63,7 @@ bool SlabsManager::Start() {
     if (env != NULL) {
         slab_bulk_check_ = atoi(env);
         if (slab_bulk_check_ == 0) {
-            slab_bulk_check = 1;
+            slab_bulk_check_ = 1;
         }
     }
 
@@ -80,7 +88,7 @@ void SlabsManager::Stop() {
     sm_instance.StopSlabsMaintainer();
     sr_instance.StopSlabsRebalancer();
     pthread_mutex_unlock(&slabs_rebalance_lock_);
-    pthread_cond_signal(&sm_instance.slab_rebalance_cond_);
+    pthread_cond_signal(&slab_rebalance_cond_);
 
     sm_instance.Wait();
     sr_instance.Wait();
@@ -121,9 +129,9 @@ void SlabsManager::InitSlabs(const size_t limit, const double factor, const bool
         }
     }
 
-    power_largest = i;
-    slabclass_[power_largest].size = g_settings.item_size_max;
-    slabclass_[power_largest].perslab = 1;
+    power_largest_ = i;
+    slabclass_[power_largest_].size = g_settings.item_size_max;
+    slabclass_[power_largest_].perslab = 1;
     if (g_settings.verbose > 1) {
         fprintf(stderr, "slab class %3d: chunk size %9u perslab %7u\n",
                 i, slabclass_[i].size, slabclass_[i].perslab);
@@ -133,13 +141,13 @@ void SlabsManager::InitSlabs(const size_t limit, const double factor, const bool
     {
         char *t_initial_malloc = getenv("T_MEMD_INITIAL_MALLOC");
         if (t_initial_malloc) {
-            mem_malloced = (size_t)atol(t_initial_malloc);
+            mem_malloced_ = (size_t)atol(t_initial_malloc);
         }
 
     }
 
     if (prealloc) {
-        slabs_preallocate(power_largest);
+        SlabsPreallocate(power_largest_);
     }
 }
 
@@ -148,14 +156,14 @@ unsigned int SlabsManager::SlabsClsid(const size_t size) {
         return 0;
     }
     int res = POWER_SMALLEST;
-    while (size > slabclass_[res].sizei) {
-        if (res++ == power_largest)     /* won't fit in the biggest slab */
+    while (size > slabclass_[res].size) {
+        if (res++ == power_largest_)     /* won't fit in the biggest slab */
             return 0;
     }
     return res;
 }
 
-Item *SlabsManager::SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks) {
+Item* SlabsManager::SlabsAllocator(const size_t size, unsigned int id, unsigned int *total_chunks) {
     pthread_mutex_lock(&slabs_lock_);
     Item *ret = DoSlabsAlloc(size, id, total_chunks);
     pthread_mutex_unlock(&slabs_lock_);
@@ -196,9 +204,12 @@ enum ReassignResultType SlabsManager::SlabsReassign(int src, int dst) {
     if (pthread_mutex_trylock(&slabs_rebalance_lock_) != 0) {
         return REASSIGN_RUNNING;
     }
-    enum ReassignResultType = DoSlabsReassign(src, dst);
+    enum ReassignResultType ret = DoSlabsReassign(src, dst);
     pthread_mutex_unlock(&slabs_rebalance_lock_);
     return ret;
+}
+
+void SlabsManager::SlabsPreallocate(const unsigned int maxslabs) {
 }
 
 void SlabsManager::PauseSlabsRebalancer() {
@@ -257,7 +268,7 @@ int SlabsManager::DoSlabsNewSlab(const unsigned int id) {
 
     char *ptr;
     if ((GrowSlabList(id) == 0) ||
-        ((ptr = MemoryAllocator((size_t)len)) == 0)) {
+        ((ptr = (char*)MemoryAllocator((size_t)len)) == 0)) {
         return 0;
     }
     memset(ptr, 0, (size_t)len);
@@ -269,11 +280,11 @@ int SlabsManager::DoSlabsNewSlab(const unsigned int id) {
 
 }
 
-Item *SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks) {
-    if (id < POWER_SMALLEST || id > power_largest) {
+Item* SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned int *total_chunks) {
+    if (id < POWER_SMALLEST || id > power_largest_) {
         return NULL;
     }
-    Item *ret = NULL;
+    Item* ret = NULL;
 
     SlabClass* p = &slabclass_[id];
     assert(p->sl_curr == 0 || ((Item *)p->slots)->slabs_clsid == 0);
@@ -281,7 +292,7 @@ Item *SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned in
     *total_chunks = p->slabs * p->perslab;
     /* fail unless we have space at the end of a recently allocated page,
        we have something on our freelist, or we could allocate a new page */
-    if (! (p->sl_curr != 0 || do_slabs_newslab(id) != 0)) {
+    if (! (p->sl_curr != 0 || DoSlabsNewSlab(id) != 0)) {
         /*
          * We don't have more memory available
          */
@@ -313,8 +324,8 @@ Item *SlabsManager::DoSlabsAlloc(const size_t size, unsigned int id, unsigned in
 }
 
 void SlabsManager::DoSlabsFree(void *ptr, const size_t size, unsigned int id) {
-    assert(id >= POWER_SMALLEST && id <= power_largest);
-    if (id < POWER_SMALLEST || id > power_largest) {
+    assert(id >= POWER_SMALLEST && id <= power_largest_);
+    if (id < POWER_SMALLEST || id > power_largest_) {
         return;
     }
 
@@ -324,7 +335,7 @@ void SlabsManager::DoSlabsFree(void *ptr, const size_t size, unsigned int id) {
     it->it_flags |= ITEM_SLABBED;
     it->slabs_clsid = 0;
     it->prev = 0;
-    it->next = p->slots;
+    it->next = (Item*)p->slots;
     if (it->next) {
         it->next->prev = it;
     }
@@ -355,8 +366,8 @@ enum ReassignResultType SlabsManager::DoSlabsReassign(int src, int dst) {
          */
     }
 
-    if (src < POWER_SMALLEST || src > power_largest ||
-        dst < POWER_SMALLEST || dst > power_largest) {
+    if (src < POWER_SMALLEST || src > power_largest_ ||
+        dst < POWER_SMALLEST || dst > power_largest_) {
         return REASSIGN_BADCLASS;
     }
 
@@ -381,7 +392,7 @@ int SlabsManager::GrowSlabList(const unsigned int id) {
         void *new_list = realloc(p->slab_list, new_size * sizeof(void *));
         if (new_list == 0) return 0;
         p->list_size = new_size;
-        p->slab_list = new_list;
+        p->slab_list = (void**)new_list;
     }
     return 1;
 }
@@ -429,7 +440,7 @@ int SlabsManager::SlabAutomoveDecision(int *src, int *dst) {
     unsigned int total_pages[MAX_NUMBER_OF_SLAB_CLASSES];
     im_instance.ItemStatsEvictions(evicted_new);
     pthread_mutex_lock(&slabs_lock_);
-    for (int i = POWER_SMALLEST; i < power_largest; ++i) {
+    for (int i = POWER_SMALLEST; i < power_largest_; ++i) {
         total_pages[i] = slabclass_[i].slabs;
     }
     pthread_mutex_unlock(&slabs_lock_);
@@ -442,7 +453,7 @@ int SlabsManager::SlabAutomoveDecision(int *src, int *dst) {
     unsigned int highest_slab = 0;
     uint64_t evicted_diff = 0, evicted_max  = 0;
     int source = 0;
-    for (int i = POWER_SMALLEST; i < power_largest; ++i) {
+    for (int i = POWER_SMALLEST; i < power_largest_; ++i) {
         evicted_diff = evicted_new[i] - evicted_old[i];
         if (evicted_diff == 0 && total_pages[i] > 2) {
             slab_zeroes[i]++;
@@ -483,7 +494,7 @@ int SlabsManager::SlabAutomoveDecision(int *src, int *dst) {
 
 void SlabsManager::SlabsAdjustMemRequested(unsigned int id, size_t old, size_t ntotal) {
     pthread_mutex_lock(&slabs_lock_);
-    if (id < POWER_SMALLEST || id > power_largest) {
+    if (id < POWER_SMALLEST || id > power_largest_) {
         fprintf(stderr, "Internal error! Invalid slab class\n");
         abort();
     }
@@ -515,12 +526,12 @@ int SlabsManager::SlabsRebalancerMove() {
     enum MoveStatus m_status = MOVE_PASS;
 
     pthread_mutex_lock(&slabs_lock_);
-    SlabClass* s_cls = &slabclass[g_slab_rebal.s_clsid];
+    SlabClass* s_cls = &slabclass_[g_slab_rebal.s_clsid];
 
-    for (int x = 0; x < slab_bulk_check; ++x) {
+    for (int x = 0; x < slab_bulk_check_; ++x) {
         uint32_t hv = 0;
         void *hold_lock = NULL;
-        Item *it = g_slab_rebal.slab_pos;
+        Item *it = (Item*)g_slab_rebal.slab_pos;
         m_status = MOVE_PASS;
         if (it->slabs_clsid != 255) {
             /*
@@ -568,7 +579,7 @@ int SlabsManager::SlabsRebalancerMove() {
                     } else {
                         if (g_settings.verbose > 2) {
                             fprintf(stderr, "Slab reassign hit a busy item: refcount: %d (%d -> %d)\n",
-                                it->refcount, slab_rebal.s_clsid, slab_rebal.d_clsid);
+                                it->refcount, g_slab_rebal.s_clsid, g_slab_rebal.d_clsid);
                         }
                         m_status = MOVE_BUSY;
                     }
@@ -630,11 +641,12 @@ int SlabsManager::SlabsRebalancerMove() {
 }
 
 int SlabsManager::SlabRebalanceStart() {
+    return 0;
 }
 
-void SlabsManager::SlabsSlabsRebalanceFinish() {
+void SlabsManager::SlabsRebalanceFinish() {
 }
 
-
+}  // end of namespace mdb
 
 /* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */
