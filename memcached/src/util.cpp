@@ -16,7 +16,14 @@
 
 #include "util.h"
 
+#include <assert.h>
+#include <stdio.h>
+#include <errno.h>
+#include <ctype.h>
+#include <string.h>
 #include <pthread.h>
+#include <stdarg.h>
+
 #ifdef __sun
 #include <atomic.h>
 #endif
@@ -186,11 +193,12 @@ void vperror(const char *fmt, ...) {
     perror(buf);
 }
 
+/*
 #ifndef HAVE_HTONLL
 static uint64_t mc_swap64(uint64_t in) {
 #ifdef ENDIAN_LITTLE
-    /* Little endian, flip the bytes around until someone makes a faster/better
-    * way to do this. */
+   //  Little endian, flip the bytes around until someone makes a faster/better
+   //  way to do this.
     int64_t rv = 0;
     int i = 0;
      for(i = 0; i<8; i++) {
@@ -199,9 +207,10 @@ static uint64_t mc_swap64(uint64_t in) {
      }
     return rv;
 #else
-    /* big-endian machines don't need byte swapping */
+    // big-endian machines don't need byte swapping
     return in;
 #endif
 }
+*/
 
 /* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */

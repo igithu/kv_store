@@ -20,6 +20,8 @@
 #ifndef __UTIL_H
 #define __UTIL_H
 
+#include <stdint.h>
+
 unsigned short RefcountIncr(unsigned short *refcount);
 unsigned short RefcountDecr(unsigned short *refcount);
 void StatsLock(void);

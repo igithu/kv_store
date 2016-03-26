@@ -64,6 +64,10 @@ class AssocMaintainer : public PUBLIC_UTIL::Thread {
          * grows the hashtable to the next power of 2.
          */
         void AssocExpand();
+        Item** HashitemBefore(
+                const char *key,
+                const size_t nkey,
+                const uint32_t hv);
         void PauseThreads(enum PauseThreadTypes type);
 
         DISALLOW_COPY_AND_ASSIGN(AssocMaintainer);

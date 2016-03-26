@@ -16,10 +16,15 @@
 
 #include "assoc_maintainer.h"
 
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
 #include "lru_crawler.h"
 #include "lru_maintainer.h"
 #include "item_manager.h"
 #include "slabs_manager.h"
+#include "hash.h"
 #include "global.h"
 #include "util.h"
 
@@ -38,7 +43,7 @@ AssocMaintainer::AssocMaintainer() :
     expanding_(false),
     started_expanding_(false),
     expand_bucket_(0),
-    hash_bulk_move_(1);
+    hash_bulk_move_(1),
     assoc_running_(true),
     maintenance_cond_(PTHREAD_COND_INITIALIZER),
     maintenance_lock_(PTHREAD_MUTEX_INITIALIZER),
@@ -61,10 +66,10 @@ AssocMaintainer& AssocMaintainer::GetInstance() {
 }
 
 void AssocMaintainer::InitAssoc(const int hashpower_init) {
-    if (hashtable_init) {
-        hashpower_ = hashtable_init;
+    if (hashpower_init) {
+        hashpower_ = hashpower_init;
     }
-    primary_hashtable_ = calloc(hashsize(hashpower_), sizeof(void *));
+    primary_hashtable_ = (Item**)calloc(hashsize(hashpower_), sizeof(Item* *));
     if (NULL != primary_hashtable_) {
         fprintf(stderr, "Failed to init hashtable.\n");
         exit(EXIT_FAILURE);
@@ -132,7 +137,7 @@ int32_t AssocMaintainer::AssocInsert(Item *it, const uint32_t hv) {
 }
 
 void AssocMaintainer::AssocDelete(const char *key, const size_t nkey, const uint32_t hv) {
-   Item **before = _hashitem_before(key, nkey, hv);
+   Item **before = HashitemBefore(key, nkey, hv);
 
     if (*before) {
         Item *nxt;
@@ -162,6 +167,7 @@ void AssocMaintainer::AssocStartExpand() {
     pthread_cond_signal(&maintenance_cond_);
 }
 
+
 void AssocMaintainer::Run() {
     pthread_mutex_lock(&maintenance_lock_);
     while(assoc_running_) {
@@ -182,7 +188,7 @@ void AssocMaintainer::Run() {
             if ((item_lock = im_instance.TryLock(expand_bucket_))) {
                 for (it = old_hashtable_[expand_bucket_]; NULL != it; it = next) {
                     next = it->h_next;
-                    bucket = hash(ITEM_key(it), it->nkey) & hashmask(hashpower_);
+                    bucket = Hash(ITEM_key(it), it->nkey) & hashmask(hashpower_);
                     it->h_next = primary_hashtable_[bucket];
                     primary_hashtable_[bucket] = it;
                 }
@@ -241,7 +247,7 @@ void AssocMaintainer::StopAssocMaintainer() {
 void AssocMaintainer::AssocExpand() {
     old_hashtable_ = primary_hashtable_;
 
-    primary_hashtable_ = calloc(hashsize(hashpower_ + 1), sizeof(void *));
+    primary_hashtable_ = (Item**)calloc(hashsize(hashpower_ + 1), sizeof(Item*));
     if (primary_hashtable_) {
         if (g_settings.verbose > 1)
             fprintf(stderr, "Hash table expansion starting\n");
@@ -257,8 +263,28 @@ void AssocMaintainer::AssocExpand() {
         /*
          * Bad news, but we can keep running.
          */
-        primary_hashtable = old_hashtable;
+        primary_hashtable_ = old_hashtable_;
     }
+}
+
+/* returns the address of the item pointer before the key.  if *item == 0,
+   the item wasn't found */
+Item** AssocMaintainer::HashitemBefore(
+        const char *key, const size_t nkey, const uint32_t hv) {
+    Item **pos;
+    unsigned int oldbucket;
+
+    if (expanding_ && (oldbucket = (hv & hashmask(hashpower_ - 1))) >= expand_bucket_) {
+        pos = &old_hashtable_[oldbucket];
+    } else {
+        pos = &primary_hashtable_[hv & hashmask(hashpower_)];
+    }
+
+    while (*pos && ((nkey != (*pos)->nkey) ||
+            memcmp(key, ITEM_key(*pos), nkey))) {
+        pos = &(*pos)->h_next;
+    }
+    return pos;
 }
 
 void AssocMaintainer::PauseThreads(enum PauseThreadTypes type) {

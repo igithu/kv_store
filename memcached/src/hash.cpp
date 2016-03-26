@@ -17,14 +17,14 @@
 #include "hash.h"
 
 #include "global.h"
-#include "jenkins_hash.h"
+// #include "jenkins_hash.h"
 #include "murmur3_hash.h"
 
 
 int InitHash(enum HashfuncType type) {
     switch (type) {
         case JENKINS_HASH:
-            Hash = jenkins_hash;
+//             Hash = jenkins_hash;
             g_settings.hash_algorithm = "jenkins";
             break;
         case MURMUR3_HASH:

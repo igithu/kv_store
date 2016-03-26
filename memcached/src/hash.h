@@ -20,6 +20,9 @@
 #ifndef __HASH_H
 #define __HASH_H
 
+#include <stdint.h>
+#include <cstddef>
+
 typedef uint32_t (*HashFunc)(const void *key, size_t length);
 
 HashFunc Hash;
